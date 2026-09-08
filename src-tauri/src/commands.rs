@@ -10,8 +10,10 @@ pub fn convert_image_file(
     path: String,
     dpi: f64,
     tone_count: u8,
+    min_area_px2: u32,
 ) -> Result<ConversionResult, String> {
-    pipeline::convert_file_to_svg(Path::new(&path), dpi, tone_count).map_err(|err| err.to_string())
+    pipeline::convert_file_to_svg(Path::new(&path), dpi, tone_count, min_area_px2)
+        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]

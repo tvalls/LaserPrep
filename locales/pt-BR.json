@@ -9,6 +9,7 @@
   "export.button": "Exportar SVG",
   "toneCount.label": "Número de tons",
   "dpi.label": "DPI de origem",
+  "minArea.label": "Área mínima (px²)",
   "validation.summary": "{{totalPaths}} caminhos, {{totalNodes}} nós.",
   "validation.openPathsWarning": "Aviso: {{count}} caminho(s) aberto(s).",
   "validation.lightburnWarning": "Aviso: incompatível com o LightBurn.",

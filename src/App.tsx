@@ -9,6 +9,7 @@ const MIN_TONE_COUNT = 2;
 const MAX_TONE_COUNT = 16;
 const DEFAULT_TONE_COUNT = 5;
 const DEFAULT_DPI = 96;
+const DEFAULT_MIN_AREA_PX2 = 16;
 
 type Status =
   | { kind: "idle" }
@@ -32,6 +33,7 @@ export default function App() {
   const { t, i18n } = useTranslation();
   const [toneCount, setToneCount] = useState(DEFAULT_TONE_COUNT);
   const [dpi, setDpi] = useState(DEFAULT_DPI);
+  const [minAreaPx2, setMinAreaPx2] = useState(DEFAULT_MIN_AREA_PX2);
   const [svg, setSvg] = useState<string | null>(null);
   const [validation, setValidation] = useState<ValidationReport | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -63,6 +65,7 @@ export default function App() {
         path,
         dpi,
         toneCount,
+        minAreaPx2,
       });
       setSvg(result.svg);
       setValidation(result.validation);
@@ -105,6 +108,13 @@ export default function App() {
     }
   }
 
+  function handleMinAreaChange(value: string) {
+    const next = Number(value);
+    if (!Number.isNaN(next)) {
+      setMinAreaPx2(next);
+    }
+  }
+
   const statusText =
     status.kind === "converting"
       ? t("app.status.converting")
@@ -137,6 +147,15 @@ export default function App() {
           min={1}
           value={dpi}
           onChange={(event) => handleDpiChange(event.target.value)}
+        />
+
+        <label htmlFor="min-area">{t("minArea.label")}</label>
+        <input
+          id="min-area"
+          type="number"
+          min={1}
+          value={minAreaPx2}
+          onChange={(event) => handleMinAreaChange(event.target.value)}
         />
       </div>
 

@@ -58,10 +58,34 @@ pub trait Vectorizer {
     fn trace(&self, mask: &BinaryMask) -> Result<Vec<VectorPath>, VectorizeError>;
 }
 
+/// vtracer's `Bw` preset's default speckle filter (`filter_speckle: 4`,
+/// squared into an area internally) — kept as our own named constant
+/// so callers aren't left guessing where `16` comes from.
+pub const DEFAULT_MIN_AREA_PX2: u32 = 16;
+
 /// The default [`Vectorizer`], backed by `vtracer` in binary-tracing
 /// mode (one call per tone mask).
-#[derive(Debug, Clone, Copy, Default)]
-pub struct VtracerVectorizer;
+///
+/// `min_area_px2` is CLAUDE.md Section 8's exposed "Minimum Area"
+/// parameter: connected regions smaller than this (in pixels²) are
+/// discarded as noise before tracing, rather than becoming a tiny
+/// stray path.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct VtracerVectorizer {
+    min_area_px2: u32,
+}
+
+impl VtracerVectorizer {
+    pub fn new(min_area_px2: u32) -> Self {
+        Self { min_area_px2 }
+    }
+}
+
+impl Default for VtracerVectorizer {
+    fn default() -> Self {
+        Self::new(DEFAULT_MIN_AREA_PX2)
+    }
+}
 
 impl Vectorizer for VtracerVectorizer {
     fn trace(&self, mask: &BinaryMask) -> Result<Vec<VectorPath>, VectorizeError> {
@@ -91,6 +115,9 @@ impl Vectorizer for VtracerVectorizer {
 
         let mut config = Config::from_preset(Preset::Bw);
         config.color_mode = ColorMode::Binary;
+        // Config::filter_speckle is a side length in pixels; vtracer
+        // squares it internally into the area threshold we expose.
+        config.filter_speckle = (f64::from(self.min_area_px2).sqrt().ceil() as usize).max(1);
 
         let svg = vtracer::convert(image, config).map_err(VectorizeError::Trace)?;
 
@@ -127,7 +154,7 @@ mod tests {
     #[test]
     fn traces_a_solid_square_into_one_path() {
         let mask = solid_square_mask(12, 12);
-        let paths = VtracerVectorizer.trace(&mask).unwrap();
+        let paths = VtracerVectorizer::default().trace(&mask).unwrap();
 
         assert_eq!(paths.len(), 1);
         assert!(paths[0].svg_element.contains("<path"));
@@ -140,7 +167,7 @@ mod tests {
             height: 4,
             foreground: vec![false; 16],
         };
-        let paths = VtracerVectorizer.trace(&mask).unwrap();
+        let paths = VtracerVectorizer::default().trace(&mask).unwrap();
         assert!(paths.is_empty());
     }
 
@@ -151,8 +178,38 @@ mod tests {
             height: 4,
             foreground: vec![false; 10],
         };
-        let err = VtracerVectorizer.trace(&mask).unwrap_err();
+        let err = VtracerVectorizer::default().trace(&mask).unwrap_err();
         assert!(matches!(err, VectorizeError::SizeMismatch { .. }));
+    }
+
+    #[test]
+    fn filters_out_regions_smaller_than_the_minimum_area() {
+        // A 2x2 (4px²) speckle on an otherwise empty 10x10 mask.
+        let width = 10;
+        let height = 10;
+        let mut foreground = vec![false; (width * height) as usize];
+        foreground[(3 * width + 3) as usize] = true;
+        foreground[(3 * width + 4) as usize] = true;
+        foreground[(4 * width + 3) as usize] = true;
+        foreground[(4 * width + 4) as usize] = true;
+        let mask = BinaryMask {
+            width,
+            height,
+            foreground,
+        };
+
+        let filtered = VtracerVectorizer::new(16).trace(&mask).unwrap();
+        assert!(
+            filtered.is_empty(),
+            "a 4px speckle should be filtered out at min_area=16"
+        );
+
+        let kept = VtracerVectorizer::new(1).trace(&mask).unwrap();
+        assert_eq!(
+            kept.len(),
+            1,
+            "the same speckle should survive at min_area=1"
+        );
     }
 
     #[test]
