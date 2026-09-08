@@ -1,10 +1,10 @@
-//! Raster image decoding into grayscale luminance samples — the
-//! IMPORTAÇÃO stage of the pipeline (CLAUDE.md Section 6). Kept
-//! separate from quantization, vectorization, and heuristic
-//! classification so the core conversion pipeline is usable and
-//! testable without the GUI (CLAUDE.md Section 5).
+//! Raster image decoding — the IMPORTAÇÃO stage of the pipeline
+//! (CLAUDE.md Section 6). Kept separate from quantization,
+//! vectorization, and heuristic classification so the core conversion
+//! pipeline is usable and testable without the GUI (CLAUDE.md
+//! Section 5).
 
-use image::GenericImageView;
+use image::{DynamicImage, GenericImageView};
 
 /// Images wider or taller than this are downscaled (preserving aspect
 /// ratio) before quantization. Bounds working memory and processing
@@ -22,6 +22,16 @@ pub struct LuminanceImage {
     pub samples: Vec<u8>,
 }
 
+/// A decoded image as 8-bit RGB samples, row-major, one `[r, g, b]`
+/// triple per pixel — for heuristics that need color, not just
+/// luminance (CLAUDE.md Section 6: saturation, color clustering).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RgbImage {
+    pub width: u32,
+    pub height: u32,
+    pub samples: Vec<[u8; 3]>,
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum ImagingError {
     #[error("failed to decode image: {0}")]
@@ -30,18 +40,17 @@ pub enum ImagingError {
     EmptyImage { width: u32, height: u32 },
 }
 
-/// Decodes `bytes`, downscales it to fit within [`MAX_DIMENSION`] if
-/// needed, and converts the result to grayscale luminance. The image
-/// format is auto-detected from its content, not from a file name or
-/// extension.
-pub fn load_luminance_from_bytes(bytes: &[u8]) -> Result<LuminanceImage, ImagingError> {
+/// Decodes `bytes` and downscales it to fit within [`MAX_DIMENSION`]
+/// if needed. The image format is auto-detected from its content, not
+/// from a file name or extension.
+fn decode_and_resize(bytes: &[u8]) -> Result<DynamicImage, ImagingError> {
     let decoded = image::load_from_memory(bytes)?;
     let (width, height) = decoded.dimensions();
     if width == 0 || height == 0 {
         return Err(ImagingError::EmptyImage { width, height });
     }
 
-    let decoded = if width > MAX_DIMENSION || height > MAX_DIMENSION {
+    Ok(if width > MAX_DIMENSION || height > MAX_DIMENSION {
         decoded.resize(
             MAX_DIMENSION,
             MAX_DIMENSION,
@@ -49,13 +58,32 @@ pub fn load_luminance_from_bytes(bytes: &[u8]) -> Result<LuminanceImage, Imaging
         )
     } else {
         decoded
-    };
+    })
+}
+
+/// Decodes `bytes` and converts the result to grayscale luminance.
+pub fn load_luminance_from_bytes(bytes: &[u8]) -> Result<LuminanceImage, ImagingError> {
+    let decoded = decode_and_resize(bytes)?;
     let (width, height) = decoded.dimensions();
 
     Ok(LuminanceImage {
         width,
         height,
         samples: decoded.to_luma8().into_raw(),
+    })
+}
+
+/// Decodes `bytes` and keeps the result as RGB (dropping any alpha
+/// channel).
+pub fn load_rgb_from_bytes(bytes: &[u8]) -> Result<RgbImage, ImagingError> {
+    let decoded = decode_and_resize(bytes)?;
+    let (width, height) = decoded.dimensions();
+    let raw = decoded.to_rgb8().into_raw();
+
+    Ok(RgbImage {
+        width,
+        height,
+        samples: raw.as_chunks::<3>().0.to_vec(),
     })
 }
 
@@ -111,5 +139,15 @@ mod tests {
             decoded.samples.len(),
             (decoded.width * decoded.height) as usize
         );
+    }
+
+    #[test]
+    fn decodes_dimensions_and_keeps_rgb_samples() {
+        let bytes = encode_png(&[[10, 20, 30], [200, 100, 50]], 2, 1);
+        let decoded = load_rgb_from_bytes(&bytes).unwrap();
+
+        assert_eq!(decoded.width, 2);
+        assert_eq!(decoded.height, 1);
+        assert_eq!(decoded.samples, vec![[10, 20, 30], [200, 100, 50]]);
     }
 }
