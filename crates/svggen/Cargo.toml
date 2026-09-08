@@ -9,3 +9,4 @@ description = "SVG document assembly (tone groups, legend, metadata) and the SVG
 
 [dependencies]
 laserprep-domain.workspace = true
+laserprep-quantize.workspace = true
