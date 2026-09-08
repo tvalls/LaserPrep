@@ -3,14 +3,10 @@
 //! closed/open/degenerate paths, self-intersections, node counts,
 //! LightBurn-compatibility checks). See CLAUDE.md Sections 9-10 and
 //! `docs/lightburn-compatibility.md`. Implemented in Phase 1 (basic SVG)
-//! and Phase 2 (legend + validator).
-//!
-//! Phase 1's artwork is a direct, unoptimized run-length rectangle
-//! encoding of the quantized tone map: real vector tracing (via
-//! `vtracer`) lands in Phase 2 through `laserprep-vectorize`.
+//! and Phase 2 (real vectorization, legend, validator).
 
-use laserprep_domain::Length;
-use laserprep_quantize::ToneMap;
+use laserprep_domain::{Length, ToneCount};
+use laserprep_vectorize::VectorPath;
 
 pub struct SvgOptions {
     /// Source image resolution in dots per inch, used to size the SVG
@@ -24,36 +20,39 @@ impl Default for SvgOptions {
     }
 }
 
-/// Renders a [`ToneMap`] as an SVG document: one `<g id="tone-N">` per
-/// tone level, each containing the horizontal-run rectangles covering
-/// that tone's pixels.
-pub fn tone_map_to_svg(tone_map: &ToneMap, options: &SvgOptions) -> String {
-    let width_mm = Length::from_pixels(f64::from(tone_map.width), options.dpi).as_millimeters();
-    let height_mm = Length::from_pixels(f64::from(tone_map.height), options.dpi).as_millimeters();
+/// Renders vectorized tone layers as an SVG document: one
+/// `<g id="tone-N">` per tone level (0..`tone_count`), containing that
+/// tone's traced `<path>` elements. `paths_by_tone[tone]` holds the
+/// paths for that tone; a missing or out-of-range index is treated as
+/// an empty (but still present) group.
+pub fn vectorized_tones_to_svg(
+    width: u32,
+    height: u32,
+    tone_count: ToneCount,
+    paths_by_tone: &[Vec<VectorPath>],
+    options: &SvgOptions,
+) -> String {
+    let width_mm = Length::from_pixels(f64::from(width), options.dpi).as_millimeters();
+    let height_mm = Length::from_pixels(f64::from(height), options.dpi).as_millimeters();
 
     let mut svg = String::new();
     svg.push_str(&format!(
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{width_mm:.3}mm\" height=\"{height_mm:.3}mm\" viewBox=\"0 0 {w} {h}\">\n",
-        w = tone_map.width,
-        h = tone_map.height,
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{width_mm:.3}mm\" height=\"{height_mm:.3}mm\" viewBox=\"0 0 {width} {height}\">\n",
     ));
     svg.push_str(&format!(
-        "  <metadata>LaserPrep v{version}; tones={tones}; dpi={dpi}; algorithm=quantize-linear+rect-runs</metadata>\n",
+        "  <metadata>LaserPrep v{version}; tones={tones}; dpi={dpi}; algorithm=quantize-linear+vtracer</metadata>\n",
         version = env!("CARGO_PKG_VERSION"),
-        tones = tone_map.tone_count.get(),
+        tones = tone_count.get(),
         dpi = options.dpi,
     ));
 
-    for tone in 0..tone_map.tone_count.get() {
+    for tone in 0..tone_count.get() {
         svg.push_str(&format!("  <g id=\"tone-{tone}\">\n"));
-        for rect in rects_for_tone(tone_map, tone) {
-            svg.push_str(&format!(
-                "    <rect x=\"{x}\" y=\"{y}\" width=\"{width}\" height=\"{height}\" />\n",
-                x = rect.x,
-                y = rect.y,
-                width = rect.width,
-                height = rect.height,
-            ));
+        if let Some(paths) = paths_by_tone.get(tone as usize) {
+            for path in paths {
+                svg.push_str("    ");
+                svg.push_str(&path.svg_element);
+            }
         }
         svg.push_str("  </g>\n");
     }
@@ -62,59 +61,21 @@ pub fn tone_map_to_svg(tone_map: &ToneMap, options: &SvgOptions) -> String {
     svg
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct Rect {
-    x: u32,
-    y: u32,
-    width: u32,
-    height: u32,
-}
-
-/// Collapses each row of `tone_map` into contiguous horizontal runs of
-/// the given `tone`, so a solid band of the same tone becomes one
-/// `<rect>` instead of one per pixel.
-fn rects_for_tone(tone_map: &ToneMap, tone: u8) -> Vec<Rect> {
-    let mut rects = Vec::new();
-
-    for y in 0..tone_map.height {
-        let row_start = (y * tone_map.width) as usize;
-        let row = &tone_map.tones[row_start..row_start + tone_map.width as usize];
-
-        let mut x = 0usize;
-        while x < row.len() {
-            if row[x] != tone {
-                x += 1;
-                continue;
-            }
-
-            let run_start = x;
-            while x < row.len() && row[x] == tone {
-                x += 1;
-            }
-
-            rects.push(Rect {
-                x: run_start as u32,
-                y,
-                width: (x - run_start) as u32,
-                height: 1,
-            });
-        }
-    }
-
-    rects
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use laserprep_domain::ToneCount;
-    use laserprep_quantize::quantize_linear;
+
+    fn path(d: &str) -> VectorPath {
+        VectorPath {
+            svg_element: format!("<path d=\"{d}\" fill=\"#000000\"/>\n"),
+        }
+    }
 
     #[test]
-    fn emits_one_group_per_tone_level() {
+    fn emits_one_group_per_tone_level_even_when_empty() {
         let tone_count = ToneCount::new(3).unwrap();
-        let map = quantize_linear(&[0, 255, 128, 0], 2, 2, tone_count).unwrap();
-        let svg = tone_map_to_svg(&map, &SvgOptions::default());
+        let paths_by_tone = vec![vec![path("M0 0")], vec![], vec![]];
+        let svg = vectorized_tones_to_svg(2, 2, tone_count, &paths_by_tone, &SvgOptions::default());
 
         for tone in 0..3 {
             assert!(
@@ -127,31 +88,30 @@ mod tests {
     }
 
     #[test]
-    fn merges_a_solid_row_into_a_single_rect() {
+    fn embeds_each_tones_paths_verbatim() {
         let tone_count = ToneCount::new(2).unwrap();
-        let map = quantize_linear(&[0, 0, 0, 0], 4, 1, tone_count).unwrap();
-        let svg = tone_map_to_svg(&map, &SvgOptions::default());
+        let paths_by_tone = vec![vec![path("M0 0 L1 1")], vec![path("M2 2 L3 3")]];
+        let svg = vectorized_tones_to_svg(4, 4, tone_count, &paths_by_tone, &SvgOptions::default());
 
-        assert!(svg.contains("<rect x=\"0\" y=\"0\" width=\"4\" height=\"1\" />"));
-        assert!(!svg.contains("width=\"1\" height=\"1\""));
+        assert!(svg.contains("d=\"M0 0 L1 1\""));
+        assert!(svg.contains("d=\"M2 2 L3 3\""));
     }
 
     #[test]
-    fn splits_alternating_pixels_into_separate_rects() {
-        let tone_count = ToneCount::new(2).unwrap();
-        let map = quantize_linear(&[0, 255, 0, 255], 4, 1, tone_count).unwrap();
+    fn tolerates_fewer_path_lists_than_tones() {
+        let tone_count = ToneCount::new(4).unwrap();
+        let paths_by_tone = vec![vec![path("M0 0")]];
+        let svg = vectorized_tones_to_svg(2, 2, tone_count, &paths_by_tone, &SvgOptions::default());
 
-        let dark_rects = rects_for_tone(&map, 0);
-        let light_rects = rects_for_tone(&map, 1);
-        assert_eq!(dark_rects.len(), 2);
-        assert_eq!(light_rects.len(), 2);
+        for tone in 0..4 {
+            assert!(svg.contains(&format!("<g id=\"tone-{tone}\">")));
+        }
     }
 
     #[test]
     fn sizes_the_viewport_from_dpi() {
         let tone_count = ToneCount::default();
-        let map = quantize_linear(&[0; 4], 2, 2, tone_count).unwrap();
-        let svg = tone_map_to_svg(&map, &SvgOptions { dpi: 96.0 });
+        let svg = vectorized_tones_to_svg(2, 2, tone_count, &[], &SvgOptions { dpi: 96.0 });
 
         // 2 px at 96 dpi = 2 / 96 in = 0.5292 mm.
         assert!(svg.contains("width=\"0.529mm\""));

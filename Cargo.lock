@@ -1884,6 +1884,7 @@ dependencies = [
  "laserprep-quantize",
  "laserprep-settings",
  "laserprep-svggen",
+ "laserprep-vectorize",
  "serde",
  "serde_json",
  "tauri",
@@ -1965,7 +1966,7 @@ name = "laserprep-svggen"
 version = "0.1.0"
 dependencies = [
  "laserprep-domain",
- "laserprep-quantize",
+ "laserprep-vectorize",
 ]
 
 [[package]]
