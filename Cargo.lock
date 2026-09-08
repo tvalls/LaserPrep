@@ -1925,6 +1925,7 @@ dependencies = [
  "laserprep-domain",
  "laserprep-imaging",
  "laserprep-optimize",
+ "laserprep-presets",
  "laserprep-quantize",
  "laserprep-settings",
  "laserprep-svggen",
@@ -1977,6 +1978,7 @@ dependencies = [
 name = "laserprep-presets"
 version = "0.1.0"
 dependencies = [
+ "laserprep-analysis",
  "laserprep-domain",
  "serde",
 ]

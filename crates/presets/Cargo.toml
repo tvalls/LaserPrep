@@ -8,5 +8,6 @@ authors.workspace = true
 description = "Named bundles of conversion/organization parameters per content category (never laser power/speed — see CLAUDE.md Section 12)."
 
 [dependencies]
+laserprep-analysis.workspace = true
 laserprep-domain.workspace = true
 serde.workspace = true
