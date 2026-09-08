@@ -1,0 +1,16 @@
+//! Tauri IPC commands exposed to the frontend. Each command is a thin
+//! wrapper around [`crate::pipeline`] that maps [`PipelineError`] to a
+//! `String` for IPC (Tauri command errors must be `Serialize`).
+
+use crate::pipeline;
+use std::path::Path;
+
+#[tauri::command]
+pub fn convert_image_file(path: String, dpi: f64, tone_count: u8) -> Result<String, String> {
+    pipeline::convert_file_to_svg(Path::new(&path), dpi, tone_count).map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub fn save_svg_file(path: String, svg: String) -> Result<(), String> {
+    pipeline::save_svg_to_file(Path::new(&path), &svg).map_err(|err| err.to_string())
+}
