@@ -9,12 +9,16 @@ dependency (see `docs/adr/0002-no-ai-ml-classification.md`).
 
 ```text
 src-tauri/     Tauri app shell: commands, window/menu bootstrap, settings
-               load, logging init. Thin — orchestration only.
+               load, logging init, and pipeline.rs (sequences the
+               crates/* calls a command needs — no algorithms of its
+               own). Thin — orchestration only.
 src/           React frontend: components, state (zustand), i18n, preview.
                Never imports crates/* directly — only calls Tauri commands.
 crates/
   domain/      Core types (Image, ToneSet, VectorPath, Project, ...).
                No I/O, no dependency on any other crate here.
+  imaging/     Raster decoding to grayscale luminance, with a maximum
+               working-dimension downscale (import + pre-processing).
   analysis/    Heuristic feature extraction + content classification.
   quantize/    N-tone quantization (linear/perceptual/adaptive/histogram).
   vectorize/   Raster→SVG tracing. Wraps `vtracer` behind a `Vectorizer`
