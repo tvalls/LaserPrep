@@ -1,0 +1,42 @@
+# Rust
+/target/
+**/target/
+Cargo.lock.bak
+
+# Node / frontend
+node_modules/
+dist/
+dist-ssr/
+.vite/
+*.local
+
+# Tauri build output
+src-tauri/target/
+src-tauri/gen/
+
+# Caches, logs, env
+.cache/
+*.log
+.env
+.env.*
+!.env.example
+
+# Editor / OS
+.vscode/*
+!.vscode/launch.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/extensions.json
+.idea/
+*.suo
+*.user
+.DS_Store
+Thumbs.db
+
+# Test-generated artifacts
+/tests/fixtures/generated/
+
+# Belt-and-suspenders: these must never exist inside this tree, but if a
+# tool or a mistake ever creates them here, never let them be committed.
+CLAUDE.md
+/.claude/skills/auto-ci/

@@ -1,0 +1,11 @@
+[package]
+name = "laserprep-optimize"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Laser path optimization: closing, noise/island removal, merging, simplification, ordering."
+
+[dependencies]
+laserprep-domain.workspace = true

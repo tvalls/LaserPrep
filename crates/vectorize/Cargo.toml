@@ -1,0 +1,11 @@
+[package]
+name = "laserprep-vectorize"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Raster-to-SVG tracing behind a Vectorizer trait (see docs/adr/0003)."
+
+[dependencies]
+laserprep-domain.workspace = true

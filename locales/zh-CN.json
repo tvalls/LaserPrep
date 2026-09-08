@@ -1,0 +1,8 @@
+{
+  "app.title": "LaserPrep",
+  "app.tagline": "将图像转换为适用于激光雕刻的 SVG。",
+  "app.status.phase0": "第 0 阶段脚手架 — 转换流程尚未实现。",
+  "common.ok": "确定",
+  "common.cancel": "取消",
+  "language.switcher.label": "语言"
+}
