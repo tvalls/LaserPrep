@@ -7,9 +7,13 @@
 
 use laserprep_domain::{ToneCount, ToneCountError};
 use laserprep_imaging::{ImagingError, load_luminance_from_bytes};
+use laserprep_optimize::merge_adjacent_regions;
 use laserprep_quantize::{QuantizeError, quantize_linear};
 use laserprep_svggen::{SvgOptions, ValidationReport, validate, vectorized_tones_to_svg};
-use laserprep_vectorize::{BinaryMask, VectorPath, VectorizeError, Vectorizer, VtracerVectorizer};
+use laserprep_vectorize::{
+    BinaryMask, VectorPath, VectorizeError, Vectorizer, VtracerVectorizer,
+    polygon_shape_to_vector_path,
+};
 use std::path::Path;
 
 #[derive(Debug, thiserror::Error)]
@@ -43,13 +47,18 @@ pub struct ConversionResult {
 /// document — one traced `<path>` set per tone level — and validates
 /// the result. `min_area_px2` is CLAUDE.md Section 8's "Minimum Area"
 /// noise filter (see [`VtracerVectorizer`]); `include_legend` adds the
-/// optional tone legend (CLAUDE.md Section 10).
+/// optional tone legend (CLAUDE.md Section 10); `merge_adjacent`
+/// applies `laserprep_optimize::merge_adjacent_regions` per tone
+/// (CLAUDE.md Section 8: "Merge Adjacent Regions"), trading curve
+/// fitting for straight-line polygons on the tones it merges (see
+/// `laserprep_vectorize::PolygonShape`).
 pub fn convert_bytes_to_svg(
     bytes: &[u8],
     dpi: f64,
     tone_count: u8,
     min_area_px2: u32,
     include_legend: bool,
+    merge_adjacent: bool,
 ) -> Result<ConversionResult, PipelineError> {
     let tone_count = ToneCount::new(tone_count)?;
     let image = load_luminance_from_bytes(bytes)?;
@@ -59,7 +68,15 @@ pub fn convert_bytes_to_svg(
     let paths_by_tone: Vec<Vec<VectorPath>> = (0..tone_count.get())
         .map(|tone| {
             let mask = BinaryMask::from_tone_map(&tone_map, tone);
-            vectorizer.trace(&mask)
+            if merge_adjacent {
+                let shapes = vectorizer.trace_polygons(&mask)?;
+                Ok(merge_adjacent_regions(&shapes)
+                    .iter()
+                    .map(polygon_shape_to_vector_path)
+                    .collect())
+            } else {
+                vectorizer.trace(&mask)
+            }
         })
         .collect::<Result<_, _>>()?;
 
@@ -85,9 +102,17 @@ pub fn convert_file_to_svg(
     tone_count: u8,
     min_area_px2: u32,
     include_legend: bool,
+    merge_adjacent: bool,
 ) -> Result<ConversionResult, PipelineError> {
     let bytes = std::fs::read(path).map_err(PipelineError::ReadFile)?;
-    convert_bytes_to_svg(&bytes, dpi, tone_count, min_area_px2, include_legend)
+    convert_bytes_to_svg(
+        &bytes,
+        dpi,
+        tone_count,
+        min_area_px2,
+        include_legend,
+        merge_adjacent,
+    )
 }
 
 /// Writes `svg` to `path`, overwriting any existing file.
@@ -127,6 +152,7 @@ mod tests {
             2,
             laserprep_vectorize::DEFAULT_MIN_AREA_PX2,
             false,
+            false,
         )
         .unwrap();
         assert!(result.svg.starts_with("<svg "));
@@ -142,6 +168,7 @@ mod tests {
             96.0,
             2,
             laserprep_vectorize::DEFAULT_MIN_AREA_PX2,
+            false,
             false,
         )
         .unwrap();
@@ -162,9 +189,25 @@ mod tests {
             2,
             laserprep_vectorize::DEFAULT_MIN_AREA_PX2,
             true,
+            false,
         )
         .unwrap();
         assert!(result.svg.contains("<g id=\"legend\""));
+    }
+
+    #[test]
+    fn merges_adjacent_regions_when_requested() {
+        let result = convert_bytes_to_svg(
+            &synthetic_png(),
+            96.0,
+            2,
+            laserprep_vectorize::DEFAULT_MIN_AREA_PX2,
+            false,
+            true,
+        )
+        .unwrap();
+        assert!(result.svg.contains("<path"));
+        assert!(result.validation.has_no_open_paths());
     }
 
     #[test]
@@ -174,6 +217,7 @@ mod tests {
             96.0,
             1,
             laserprep_vectorize::DEFAULT_MIN_AREA_PX2,
+            false,
             false,
         )
         .unwrap_err();
@@ -187,6 +231,7 @@ mod tests {
             96.0,
             5,
             laserprep_vectorize::DEFAULT_MIN_AREA_PX2,
+            false,
             false,
         )
         .unwrap_err();
@@ -204,6 +249,7 @@ mod tests {
             96.0,
             2,
             laserprep_vectorize::DEFAULT_MIN_AREA_PX2,
+            false,
             false,
         )
         .unwrap();

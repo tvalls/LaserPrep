@@ -35,6 +35,7 @@ export default function App() {
   const [dpi, setDpi] = useState(DEFAULT_DPI);
   const [minAreaPx2, setMinAreaPx2] = useState(DEFAULT_MIN_AREA_PX2);
   const [includeLegend, setIncludeLegend] = useState(false);
+  const [mergeAdjacent, setMergeAdjacent] = useState(false);
   const [svg, setSvg] = useState<string | null>(null);
   const [validation, setValidation] = useState<ValidationReport | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -68,6 +69,7 @@ export default function App() {
         toneCount,
         minAreaPx2,
         includeLegend,
+        mergeAdjacent,
       });
       setSvg(result.svg);
       setValidation(result.validation);
@@ -166,6 +168,14 @@ export default function App() {
           type="checkbox"
           checked={includeLegend}
           onChange={(event) => setIncludeLegend(event.target.checked)}
+        />
+
+        <label htmlFor="merge-adjacent">{t("mergeAdjacent.label")}</label>
+        <input
+          id="merge-adjacent"
+          type="checkbox"
+          checked={mergeAdjacent}
+          onChange={(event) => setMergeAdjacent(event.target.checked)}
         />
       </div>
 

@@ -12,6 +12,7 @@ pub fn convert_image_file(
     tone_count: u8,
     min_area_px2: u32,
     include_legend: bool,
+    merge_adjacent: bool,
 ) -> Result<ConversionResult, String> {
     pipeline::convert_file_to_svg(
         Path::new(&path),
@@ -19,6 +20,7 @@ pub fn convert_image_file(
         tone_count,
         min_area_px2,
         include_legend,
+        merge_adjacent,
     )
     .map_err(|err| err.to_string())
 }

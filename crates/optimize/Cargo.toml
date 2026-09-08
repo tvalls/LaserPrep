@@ -8,4 +8,5 @@ authors.workspace = true
 description = "Laser path optimization: closing, noise/island removal, merging, simplification, ordering."
 
 [dependencies]
-laserprep-domain.workspace = true
+i_overlay = "8"
+laserprep-vectorize.workspace = true

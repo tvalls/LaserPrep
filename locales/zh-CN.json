@@ -11,6 +11,7 @@
   "dpi.label": "源 DPI",
   "minArea.label": "最小面积（平方像素）",
   "legend.label": "包含色调图例",
+  "mergeAdjacent.label": "合并相邻区域",
   "validation.summary": "{{totalPaths}} 条路径，{{totalNodes}} 个节点。",
   "validation.openPathsWarning": "警告：{{count}} 条开放路径。",
   "validation.lightburnWarning": "警告：与 LightBurn 不兼容。",
