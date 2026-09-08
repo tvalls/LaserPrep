@@ -1967,6 +1967,7 @@ version = "0.1.0"
 dependencies = [
  "laserprep-domain",
  "laserprep-vectorize",
+ "serde",
 ]
 
 [[package]]

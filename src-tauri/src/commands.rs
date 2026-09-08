@@ -2,11 +2,15 @@
 //! wrapper around [`crate::pipeline`] that maps [`PipelineError`] to a
 //! `String` for IPC (Tauri command errors must be `Serialize`).
 
-use crate::pipeline;
+use crate::pipeline::{self, ConversionResult};
 use std::path::Path;
 
 #[tauri::command]
-pub fn convert_image_file(path: String, dpi: f64, tone_count: u8) -> Result<String, String> {
+pub fn convert_image_file(
+    path: String,
+    dpi: f64,
+    tone_count: u8,
+) -> Result<ConversionResult, String> {
     pipeline::convert_file_to_svg(Path::new(&path), dpi, tone_count).map_err(|err| err.to_string())
 }
 

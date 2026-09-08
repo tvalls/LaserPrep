@@ -9,6 +9,9 @@
   "export.button": "导出 SVG",
   "toneCount.label": "色调数量",
   "dpi.label": "源 DPI",
+  "validation.summary": "{{totalPaths}} 条路径，{{totalNodes}} 个节点。",
+  "validation.openPathsWarning": "警告：{{count}} 条开放路径。",
+  "validation.lightburnWarning": "警告：与 LightBurn 不兼容。",
   "common.ok": "确定",
   "common.cancel": "取消",
   "language.switcher.label": "语言"
