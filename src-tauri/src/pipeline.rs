@@ -41,17 +41,19 @@ pub struct ConversionResult {
 
 /// Decodes, quantizes, vectorizes, and renders `bytes` as an SVG
 /// document — one traced `<path>` set per tone level — and validates
-/// the result.
+/// the result. `min_area_px2` is CLAUDE.md Section 8's "Minimum Area"
+/// noise filter (see [`VtracerVectorizer`]).
 pub fn convert_bytes_to_svg(
     bytes: &[u8],
     dpi: f64,
     tone_count: u8,
+    min_area_px2: u32,
 ) -> Result<ConversionResult, PipelineError> {
     let tone_count = ToneCount::new(tone_count)?;
     let image = load_luminance_from_bytes(bytes)?;
     let tone_map = quantize_linear(&image.samples, image.width, image.height, tone_count)?;
 
-    let vectorizer = VtracerVectorizer;
+    let vectorizer = VtracerVectorizer::new(min_area_px2);
     let paths_by_tone: Vec<Vec<VectorPath>> = (0..tone_count.get())
         .map(|tone| {
             let mask = BinaryMask::from_tone_map(&tone_map, tone);
@@ -76,9 +78,10 @@ pub fn convert_file_to_svg(
     path: &Path,
     dpi: f64,
     tone_count: u8,
+    min_area_px2: u32,
 ) -> Result<ConversionResult, PipelineError> {
     let bytes = std::fs::read(path).map_err(PipelineError::ReadFile)?;
-    convert_bytes_to_svg(&bytes, dpi, tone_count)
+    convert_bytes_to_svg(&bytes, dpi, tone_count, min_area_px2)
 }
 
 /// Writes `svg` to `path`, overwriting any existing file.
@@ -112,7 +115,13 @@ mod tests {
 
     #[test]
     fn converts_a_decoded_image_end_to_end() {
-        let result = convert_bytes_to_svg(&synthetic_png(), 96.0, 2).unwrap();
+        let result = convert_bytes_to_svg(
+            &synthetic_png(),
+            96.0,
+            2,
+            laserprep_vectorize::DEFAULT_MIN_AREA_PX2,
+        )
+        .unwrap();
         assert!(result.svg.starts_with("<svg "));
         assert!(result.svg.contains("<g id=\"tone-0\">"));
         assert!(result.svg.contains("<g id=\"tone-1\">"));
@@ -121,7 +130,13 @@ mod tests {
 
     #[test]
     fn validates_the_generated_document() {
-        let result = convert_bytes_to_svg(&synthetic_png(), 96.0, 2).unwrap();
+        let result = convert_bytes_to_svg(
+            &synthetic_png(),
+            96.0,
+            2,
+            laserprep_vectorize::DEFAULT_MIN_AREA_PX2,
+        )
+        .unwrap();
         assert!(result.validation.has_no_open_paths());
         assert!(result.validation.has_valid_coordinates());
         assert!(result.validation.is_lightburn_compatible());
@@ -133,13 +148,25 @@ mod tests {
 
     #[test]
     fn rejects_an_invalid_tone_count() {
-        let err = convert_bytes_to_svg(&synthetic_png(), 96.0, 1).unwrap_err();
+        let err = convert_bytes_to_svg(
+            &synthetic_png(),
+            96.0,
+            1,
+            laserprep_vectorize::DEFAULT_MIN_AREA_PX2,
+        )
+        .unwrap_err();
         assert!(matches!(err, PipelineError::InvalidToneCount(_)));
     }
 
     #[test]
     fn rejects_undecodable_bytes() {
-        let err = convert_bytes_to_svg(&[0, 1, 2, 3], 96.0, 5).unwrap_err();
+        let err = convert_bytes_to_svg(
+            &[0, 1, 2, 3],
+            96.0,
+            5,
+            laserprep_vectorize::DEFAULT_MIN_AREA_PX2,
+        )
+        .unwrap_err();
         assert!(matches!(err, PipelineError::Imaging(_)));
     }
 
@@ -149,7 +176,13 @@ mod tests {
         let input_path = dir.path().join("input.png");
         std::fs::write(&input_path, synthetic_png()).unwrap();
 
-        let result = convert_file_to_svg(&input_path, 96.0, 2).unwrap();
+        let result = convert_file_to_svg(
+            &input_path,
+            96.0,
+            2,
+            laserprep_vectorize::DEFAULT_MIN_AREA_PX2,
+        )
+        .unwrap();
 
         let output_path = dir.path().join("output.svg");
         save_svg_to_file(&output_path, &result.svg).unwrap();

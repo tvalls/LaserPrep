@@ -73,6 +73,7 @@ describe("App", () => {
       path: "/tmp/photo.png",
       dpi: 96,
       toneCount: 5,
+      minAreaPx2: 16,
     });
     expect(screen.getByRole("img")).toHaveAttribute(
       "src",

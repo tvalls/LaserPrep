@@ -139,7 +139,7 @@ mod tests {
             height,
             foreground,
         };
-        let paths = VtracerVectorizer.trace(&mask).unwrap();
+        let paths = VtracerVectorizer::default().trace(&mask).unwrap();
         let tone_count = ToneCount::new(2).unwrap();
         let paths_by_tone = vec![paths, vec![]];
 
