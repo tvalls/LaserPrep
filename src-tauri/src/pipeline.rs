@@ -1,14 +1,14 @@
 //! Orchestrates the Phase 1/2 conversion pipeline (CLAUDE.md Section 6:
 //! IMPORTAÇÃO → ... → QUANTIZAÇÃO EM TONS → SEGMENTAÇÃO → VETORIZAÇÃO →
-//! ... → GERAÇÃO DO SVG) by sequencing calls into `crates/imaging`,
-//! `crates/quantize`, `crates/vectorize`, and `crates/svggen`. Contains
-//! no algorithms of its own — see `docs/architecture.md` ("UI nunca
-//! acoplada aos algoritmos").
+//! ... → GERAÇÃO DO SVG → VALIDAÇÃO) by sequencing calls into
+//! `crates/imaging`, `crates/quantize`, `crates/vectorize`, and
+//! `crates/svggen`. Contains no algorithms of its own — see
+//! `docs/architecture.md` ("UI nunca acoplada aos algoritmos").
 
 use laserprep_domain::{ToneCount, ToneCountError};
 use laserprep_imaging::{ImagingError, load_luminance_from_bytes};
 use laserprep_quantize::{QuantizeError, quantize_linear};
-use laserprep_svggen::{SvgOptions, vectorized_tones_to_svg};
+use laserprep_svggen::{SvgOptions, ValidationReport, validate, vectorized_tones_to_svg};
 use laserprep_vectorize::{BinaryMask, VectorPath, VectorizeError, Vectorizer, VtracerVectorizer};
 use std::path::Path;
 
@@ -28,13 +28,25 @@ pub enum PipelineError {
     WriteFile(std::io::Error),
 }
 
+/// A generated SVG document plus its [`ValidationReport`], returned
+/// together so the UI never has to re-derive validation inputs
+/// (width/height/tone count) separately from the conversion call that
+/// produced them.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConversionResult {
+    pub svg: String,
+    pub validation: ValidationReport,
+}
+
 /// Decodes, quantizes, vectorizes, and renders `bytes` as an SVG
-/// document — one traced `<path>` set per tone level.
+/// document — one traced `<path>` set per tone level — and validates
+/// the result.
 pub fn convert_bytes_to_svg(
     bytes: &[u8],
     dpi: f64,
     tone_count: u8,
-) -> Result<String, PipelineError> {
+) -> Result<ConversionResult, PipelineError> {
     let tone_count = ToneCount::new(tone_count)?;
     let image = load_luminance_from_bytes(bytes)?;
     let tone_map = quantize_linear(&image.samples, image.width, image.height, tone_count)?;
@@ -47,17 +59,24 @@ pub fn convert_bytes_to_svg(
         })
         .collect::<Result<_, _>>()?;
 
-    Ok(vectorized_tones_to_svg(
+    let svg = vectorized_tones_to_svg(
         tone_map.width,
         tone_map.height,
         tone_count,
         &paths_by_tone,
         &SvgOptions { dpi },
-    ))
+    );
+    let validation = validate(&svg, tone_map.width, tone_map.height, tone_count.get());
+
+    Ok(ConversionResult { svg, validation })
 }
 
 /// Reads the image at `path` and runs [`convert_bytes_to_svg`] on it.
-pub fn convert_file_to_svg(path: &Path, dpi: f64, tone_count: u8) -> Result<String, PipelineError> {
+pub fn convert_file_to_svg(
+    path: &Path,
+    dpi: f64,
+    tone_count: u8,
+) -> Result<ConversionResult, PipelineError> {
     let bytes = std::fs::read(path).map_err(PipelineError::ReadFile)?;
     convert_bytes_to_svg(&bytes, dpi, tone_count)
 }
@@ -93,11 +112,23 @@ mod tests {
 
     #[test]
     fn converts_a_decoded_image_end_to_end() {
-        let svg = convert_bytes_to_svg(&synthetic_png(), 96.0, 2).unwrap();
-        assert!(svg.starts_with("<svg "));
-        assert!(svg.contains("<g id=\"tone-0\">"));
-        assert!(svg.contains("<g id=\"tone-1\">"));
-        assert!(svg.contains("<path"));
+        let result = convert_bytes_to_svg(&synthetic_png(), 96.0, 2).unwrap();
+        assert!(result.svg.starts_with("<svg "));
+        assert!(result.svg.contains("<g id=\"tone-0\">"));
+        assert!(result.svg.contains("<g id=\"tone-1\">"));
+        assert!(result.svg.contains("<path"));
+    }
+
+    #[test]
+    fn validates_the_generated_document() {
+        let result = convert_bytes_to_svg(&synthetic_png(), 96.0, 2).unwrap();
+        assert!(result.validation.has_no_open_paths());
+        assert!(result.validation.has_valid_coordinates());
+        assert!(result.validation.is_lightburn_compatible());
+        // One path for the dark 8x8 square (tone 0) and one for the
+        // light background ring around it (tone 1).
+        assert_eq!(result.validation.total_paths, 2);
+        assert_eq!(result.validation.tone_count, 2);
     }
 
     #[test]
@@ -118,11 +149,11 @@ mod tests {
         let input_path = dir.path().join("input.png");
         std::fs::write(&input_path, synthetic_png()).unwrap();
 
-        let svg = convert_file_to_svg(&input_path, 96.0, 2).unwrap();
+        let result = convert_file_to_svg(&input_path, 96.0, 2).unwrap();
 
         let output_path = dir.path().join("output.svg");
-        save_svg_to_file(&output_path, &svg).unwrap();
+        save_svg_to_file(&output_path, &result.svg).unwrap();
 
-        assert_eq!(std::fs::read_to_string(&output_path).unwrap(), svg);
+        assert_eq!(std::fs::read_to_string(&output_path).unwrap(), result.svg);
     }
 }

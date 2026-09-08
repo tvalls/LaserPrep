@@ -13,7 +13,8 @@
 //! is deferred until there is a concrete need for it.
 
 /// The result of validating one generated SVG document.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ValidationReport {
     pub width: u32,
     pub height: u32,

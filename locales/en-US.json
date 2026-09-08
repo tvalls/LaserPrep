@@ -9,6 +9,9 @@
   "export.button": "Export SVG",
   "toneCount.label": "Tone count",
   "dpi.label": "Source DPI",
+  "validation.summary": "{{totalPaths}} paths, {{totalNodes}} nodes.",
+  "validation.openPathsWarning": "Warning: {{count}} open path(s).",
+  "validation.lightburnWarning": "Warning: not LightBurn-compatible.",
   "common.ok": "OK",
   "common.cancel": "Cancel",
   "language.switcher.label": "Language"

@@ -24,6 +24,17 @@ beforeEach(async () => {
   await i18n.changeLanguage("en-US");
 });
 
+const cleanValidation = {
+  totalPaths: 3,
+  openPaths: 0,
+  totalNodes: 12,
+  lightburnIncompatibilities: [] as string[],
+};
+
+function conversionResult(overrides: Partial<typeof cleanValidation> = {}) {
+  return { svg: "<svg></svg>", validation: { ...cleanValidation, ...overrides } };
+}
+
 describe("App", () => {
   it("renders the app title and the idle status", async () => {
     render(<App />);
@@ -49,7 +60,7 @@ describe("App", () => {
 
   it("imports and converts an image, then shows a preview", async () => {
     open.mockResolvedValue("/tmp/photo.png");
-    invoke.mockResolvedValue("<svg></svg>");
+    invoke.mockResolvedValue(conversionResult());
     const user = userEvent.setup();
 
     render(<App />);
@@ -68,6 +79,35 @@ describe("App", () => {
       "blob:mock-preview",
     );
     expect(screen.getByRole("button", { name: "Export SVG" })).toBeEnabled();
+    expect(screen.getByText("3 paths, 12 nodes.")).toBeInTheDocument();
+  });
+
+  it("shows a warning when the validator finds open paths", async () => {
+    open.mockResolvedValue("/tmp/photo.png");
+    invoke.mockResolvedValue(conversionResult({ openPaths: 2 }));
+    const user = userEvent.setup();
+
+    render(<App />);
+    await user.click(screen.getByRole("button", { name: "Import Image" }));
+
+    expect(
+      await screen.findByText(/Warning: 2 open path\(s\)\./),
+    ).toBeInTheDocument();
+  });
+
+  it("shows a warning when the validator finds LightBurn incompatibilities", async () => {
+    open.mockResolvedValue("/tmp/photo.png");
+    invoke.mockResolvedValue(
+      conversionResult({ lightburnIncompatibilities: ["<filter"] }),
+    );
+    const user = userEvent.setup();
+
+    render(<App />);
+    await user.click(screen.getByRole("button", { name: "Import Image" }));
+
+    expect(
+      await screen.findByText(/Warning: not LightBurn-compatible\./),
+    ).toBeInTheDocument();
   });
 
   it("shows an error message when conversion fails", async () => {
@@ -102,7 +142,7 @@ describe("App", () => {
   it("exports the converted SVG to a chosen path", async () => {
     open.mockResolvedValue("/tmp/photo.png");
     save.mockResolvedValue("/tmp/photo.svg");
-    invoke.mockResolvedValue("<svg></svg>");
+    invoke.mockResolvedValue(conversionResult());
     const user = userEvent.setup();
 
     render(<App />);

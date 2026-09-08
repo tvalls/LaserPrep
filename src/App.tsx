@@ -16,11 +16,24 @@ type Status =
   | { kind: "converted" }
   | { kind: "error"; message: string };
 
+type ValidationReport = {
+  totalPaths: number;
+  openPaths: number;
+  totalNodes: number;
+  lightburnIncompatibilities: string[];
+};
+
+type ConversionResult = {
+  svg: string;
+  validation: ValidationReport;
+};
+
 export default function App() {
   const { t, i18n } = useTranslation();
   const [toneCount, setToneCount] = useState(DEFAULT_TONE_COUNT);
   const [dpi, setDpi] = useState(DEFAULT_DPI);
   const [svg, setSvg] = useState<string | null>(null);
+  const [validation, setValidation] = useState<ValidationReport | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
 
@@ -46,15 +59,17 @@ export default function App() {
 
     setStatus({ kind: "converting" });
     try {
-      const result = await invoke<string>("convert_image_file", {
+      const result = await invoke<ConversionResult>("convert_image_file", {
         path,
         dpi,
         toneCount,
       });
-      setSvg(result);
+      setSvg(result.svg);
+      setValidation(result.validation);
       setStatus({ kind: "converted" });
     } catch (error) {
       setSvg(null);
+      setValidation(null);
       setStatus({ kind: "error", message: String(error) });
     }
   }
@@ -133,6 +148,21 @@ export default function App() {
       </button>
 
       <p role="status">{statusText}</p>
+
+      {validation && (
+        <p>
+          {t("validation.summary", {
+            totalPaths: validation.totalPaths,
+            totalNodes: validation.totalNodes,
+          })}
+          {validation.openPaths > 0 && (
+            <> {t("validation.openPathsWarning", { count: validation.openPaths })}</>
+          )}
+          {validation.lightburnIncompatibilities.length > 0 && (
+            <> {t("validation.lightburnWarning")}</>
+          )}
+        </p>
+      )}
 
       {previewUrl && <img src={previewUrl} alt={t("app.title")} />}
 
