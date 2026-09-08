@@ -7,11 +7,11 @@ application is left in a partially-fake state (see CLAUDE.md Section 13).
 - **Phase 0** — Architecture, CI, repository, initial documentation,
   minimal buildable skeleton. *(done)*
 - **Phase 1** — Import, preview, basic processing, quantization, basic
-  SVG, export. *(current)*
+  SVG, export. *(done)*
 - **Phase 2** — Advanced vectorization, path closing, simplification,
-  noise removal, legend, SVG validator.
+  noise removal, legend, SVG validator. *(done)*
 - **Phase 3** — Heuristic content classification, category-specific
-  pipelines, presets.
+  pipelines, presets. *(current)*
 - **Phase 4** — Batch processing, `.lvp` projects, undo/history,
   intermediate cache.
 - **Phase 5** — LightBurn path-ordering optimization, Laser Optimization
