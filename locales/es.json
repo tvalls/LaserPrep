@@ -1,7 +1,14 @@
 {
   "app.title": "LaserPrep",
   "app.tagline": "Convierte imágenes en SVG listos para grabado láser.",
-  "app.status.phase0": "Estructura de la Fase 0 — el proceso de conversión aún no está implementado.",
+  "app.status.idle": "Importa una imagen para generar un SVG listo para grabado láser.",
+  "app.status.converting": "Convirtiendo…",
+  "app.status.converted": "Convertido a un SVG de {{toneCount}} tonos.",
+  "app.status.error": "Algo salió mal: {{message}}",
+  "import.button": "Importar imagen",
+  "export.button": "Exportar SVG",
+  "toneCount.label": "Número de tonos",
+  "dpi.label": "DPI de origen",
   "common.ok": "Aceptar",
   "common.cancel": "Cancelar",
   "language.switcher.label": "Idioma"

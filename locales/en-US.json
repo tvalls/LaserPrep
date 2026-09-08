@@ -1,7 +1,14 @@
 {
   "app.title": "LaserPrep",
   "app.tagline": "Turn images into laser-ready SVGs.",
-  "app.status.phase0": "Phase 0 scaffold — the conversion pipeline isn't built yet.",
+  "app.status.idle": "Import an image to generate a laser-ready SVG.",
+  "app.status.converting": "Converting…",
+  "app.status.converted": "Converted to a {{toneCount}}-tone SVG.",
+  "app.status.error": "Something went wrong: {{message}}",
+  "import.button": "Import Image",
+  "export.button": "Export SVG",
+  "toneCount.label": "Tone count",
+  "dpi.label": "Source DPI",
   "common.ok": "OK",
   "common.cancel": "Cancel",
   "language.switcher.label": "Language"
