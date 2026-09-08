@@ -16,7 +16,7 @@ impl ToneCount {
         if (Self::MIN..=Self::MAX).contains(&value) {
             Ok(Self(value))
         } else {
-            Err(ToneCountError::OutOfRange(value))
+            Err(ToneCountError::OutOfRange { value })
         }
     }
 
@@ -48,11 +48,11 @@ impl From<ToneCount> for u8 {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum ToneCountError {
     #[error(
-        "tone count must be between {} and {} (got {0})",
+        "tone count must be between {} and {} (got {value})",
         ToneCount::MIN,
         ToneCount::MAX
     )]
-    OutOfRange(u8),
+    OutOfRange { value: u8 },
 }
 
 #[cfg(test)]
@@ -68,9 +68,18 @@ mod tests {
 
     #[test]
     fn rejects_values_out_of_range() {
-        assert_eq!(ToneCount::new(1), Err(ToneCountError::OutOfRange(1)));
-        assert_eq!(ToneCount::new(17), Err(ToneCountError::OutOfRange(17)));
-        assert_eq!(ToneCount::new(0), Err(ToneCountError::OutOfRange(0)));
+        assert_eq!(
+            ToneCount::new(1),
+            Err(ToneCountError::OutOfRange { value: 1 })
+        );
+        assert_eq!(
+            ToneCount::new(17),
+            Err(ToneCountError::OutOfRange { value: 17 })
+        );
+        assert_eq!(
+            ToneCount::new(0),
+            Err(ToneCountError::OutOfRange { value: 0 })
+        );
     }
 
     #[test]

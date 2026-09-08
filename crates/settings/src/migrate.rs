@@ -25,23 +25,30 @@ pub enum SettingsError {
 /// `schemaVersion` newer than this build understands is rejected rather
 /// than silently reinterpreted, per auto-ci Standard 7's forward-version
 /// handling rule.
-pub fn migrate(data: Value) -> Result<Settings, SettingsError> {
-    let mut version = data
+pub fn migrate(mut data: Value) -> Result<Settings, SettingsError> {
+    let version = data
         .get("schemaVersion")
         .and_then(Value::as_u64)
         .unwrap_or(1) as u32;
-    let mut data = data;
 
-    while version < CURRENT_SCHEMA_VERSION {
-        data = match version {
-            // Example for the next schema bump:
-            // 1 => { version = 2; migrate_v1_to_v2(data) }
-            other => return Err(SettingsError::UnsupportedSchemaVersion(other)),
-        };
+    // Example for the next schema bump, once CURRENT_SCHEMA_VERSION > 1:
+    // if version == 1 { data = migrate_v1_to_v2(data); version = 2; }
+    if version < CURRENT_SCHEMA_VERSION {
+        return Err(SettingsError::UnsupportedSchemaVersion(version));
     }
 
     if version > CURRENT_SCHEMA_VERSION {
         return Err(SettingsError::NewerSchemaVersion(version));
+    }
+
+    // A missing `schemaVersion` was treated as `version` above but never
+    // written back, so a pre-versioning file would otherwise fail to
+    // deserialize (`Settings::schema_version` has no `#[serde(default)]`).
+    if let Value::Object(map) = &mut data {
+        map.insert(
+            "schemaVersion".to_string(),
+            Value::from(CURRENT_SCHEMA_VERSION),
+        );
     }
 
     serde_json::from_value(data).map_err(SettingsError::Deserialize)
