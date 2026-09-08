@@ -34,6 +34,7 @@ export default function App() {
   const [toneCount, setToneCount] = useState(DEFAULT_TONE_COUNT);
   const [dpi, setDpi] = useState(DEFAULT_DPI);
   const [minAreaPx2, setMinAreaPx2] = useState(DEFAULT_MIN_AREA_PX2);
+  const [includeLegend, setIncludeLegend] = useState(false);
   const [svg, setSvg] = useState<string | null>(null);
   const [validation, setValidation] = useState<ValidationReport | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -66,6 +67,7 @@ export default function App() {
         dpi,
         toneCount,
         minAreaPx2,
+        includeLegend,
       });
       setSvg(result.svg);
       setValidation(result.validation);
@@ -156,6 +158,14 @@ export default function App() {
           min={1}
           value={minAreaPx2}
           onChange={(event) => handleMinAreaChange(event.target.value)}
+        />
+
+        <label htmlFor="include-legend">{t("legend.label")}</label>
+        <input
+          id="include-legend"
+          type="checkbox"
+          checked={includeLegend}
+          onChange={(event) => setIncludeLegend(event.target.checked)}
         />
       </div>
 

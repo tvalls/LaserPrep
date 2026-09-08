@@ -42,12 +42,14 @@ pub struct ConversionResult {
 /// Decodes, quantizes, vectorizes, and renders `bytes` as an SVG
 /// document — one traced `<path>` set per tone level — and validates
 /// the result. `min_area_px2` is CLAUDE.md Section 8's "Minimum Area"
-/// noise filter (see [`VtracerVectorizer`]).
+/// noise filter (see [`VtracerVectorizer`]); `include_legend` adds the
+/// optional tone legend (CLAUDE.md Section 10).
 pub fn convert_bytes_to_svg(
     bytes: &[u8],
     dpi: f64,
     tone_count: u8,
     min_area_px2: u32,
+    include_legend: bool,
 ) -> Result<ConversionResult, PipelineError> {
     let tone_count = ToneCount::new(tone_count)?;
     let image = load_luminance_from_bytes(bytes)?;
@@ -66,7 +68,10 @@ pub fn convert_bytes_to_svg(
         tone_map.height,
         tone_count,
         &paths_by_tone,
-        &SvgOptions { dpi },
+        &SvgOptions {
+            dpi,
+            include_legend,
+        },
     );
     let validation = validate(&svg, tone_map.width, tone_map.height, tone_count.get());
 
@@ -79,9 +84,10 @@ pub fn convert_file_to_svg(
     dpi: f64,
     tone_count: u8,
     min_area_px2: u32,
+    include_legend: bool,
 ) -> Result<ConversionResult, PipelineError> {
     let bytes = std::fs::read(path).map_err(PipelineError::ReadFile)?;
-    convert_bytes_to_svg(&bytes, dpi, tone_count, min_area_px2)
+    convert_bytes_to_svg(&bytes, dpi, tone_count, min_area_px2, include_legend)
 }
 
 /// Writes `svg` to `path`, overwriting any existing file.
@@ -120,6 +126,7 @@ mod tests {
             96.0,
             2,
             laserprep_vectorize::DEFAULT_MIN_AREA_PX2,
+            false,
         )
         .unwrap();
         assert!(result.svg.starts_with("<svg "));
@@ -135,6 +142,7 @@ mod tests {
             96.0,
             2,
             laserprep_vectorize::DEFAULT_MIN_AREA_PX2,
+            false,
         )
         .unwrap();
         assert!(result.validation.has_no_open_paths());
@@ -147,12 +155,26 @@ mod tests {
     }
 
     #[test]
+    fn includes_a_legend_group_when_requested() {
+        let result = convert_bytes_to_svg(
+            &synthetic_png(),
+            96.0,
+            2,
+            laserprep_vectorize::DEFAULT_MIN_AREA_PX2,
+            true,
+        )
+        .unwrap();
+        assert!(result.svg.contains("<g id=\"legend\""));
+    }
+
+    #[test]
     fn rejects_an_invalid_tone_count() {
         let err = convert_bytes_to_svg(
             &synthetic_png(),
             96.0,
             1,
             laserprep_vectorize::DEFAULT_MIN_AREA_PX2,
+            false,
         )
         .unwrap_err();
         assert!(matches!(err, PipelineError::InvalidToneCount(_)));
@@ -165,6 +187,7 @@ mod tests {
             96.0,
             5,
             laserprep_vectorize::DEFAULT_MIN_AREA_PX2,
+            false,
         )
         .unwrap_err();
         assert!(matches!(err, PipelineError::Imaging(_)));
@@ -181,6 +204,7 @@ mod tests {
             96.0,
             2,
             laserprep_vectorize::DEFAULT_MIN_AREA_PX2,
+            false,
         )
         .unwrap();
 

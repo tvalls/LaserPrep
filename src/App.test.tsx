@@ -74,6 +74,7 @@ describe("App", () => {
       dpi: 96,
       toneCount: 5,
       minAreaPx2: 16,
+      includeLegend: false,
     });
     expect(screen.getByRole("img")).toHaveAttribute(
       "src",
