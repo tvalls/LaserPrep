@@ -1,12 +1,14 @@
-//! Orchestrates the Phase 1/2 conversion pipeline (CLAUDE.md Section 6:
-//! IMPORTAÇÃO → ... → QUANTIZAÇÃO EM TONS → SEGMENTAÇÃO → VETORIZAÇÃO →
-//! ... → GERAÇÃO DO SVG → VALIDAÇÃO) by sequencing calls into
-//! `crates/imaging`, `crates/quantize`, `crates/vectorize`, and
+//! Orchestrates the Phase 1/2/3 conversion pipeline (CLAUDE.md
+//! Section 6: IMPORTAÇÃO → ANÁLISE HEURÍSTICA → ... → QUANTIZAÇÃO EM
+//! TONS → SEGMENTAÇÃO → VETORIZAÇÃO → ... → GERAÇÃO DO SVG →
+//! VALIDAÇÃO) by sequencing calls into `crates/imaging`,
+//! `crates/analysis`, `crates/quantize`, `crates/vectorize`, and
 //! `crates/svggen`. Contains no algorithms of its own — see
 //! `docs/architecture.md` ("UI nunca acoplada aos algoritmos").
 
+use laserprep_analysis::{Classification, analyze, classify};
 use laserprep_domain::{ToneCount, ToneCountError};
-use laserprep_imaging::{ImagingError, load_luminance_from_bytes};
+use laserprep_imaging::{ImagingError, load_rgb_from_bytes};
 use laserprep_optimize::merge_adjacent_regions;
 use laserprep_quantize::{QuantizeError, quantize_linear};
 use laserprep_svggen::{SvgOptions, ValidationReport, validate, vectorized_tones_to_svg};
@@ -32,15 +34,16 @@ pub enum PipelineError {
     WriteFile(std::io::Error),
 }
 
-/// A generated SVG document plus its [`ValidationReport`], returned
-/// together so the UI never has to re-derive validation inputs
-/// (width/height/tone count) separately from the conversion call that
-/// produced them.
+/// A generated SVG document plus its [`ValidationReport`] and
+/// heuristic [`Classification`], returned together so the UI never
+/// has to re-derive validation inputs (width/height/tone count)
+/// separately from the conversion call that produced them.
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ConversionResult {
     pub svg: String,
     pub validation: ValidationReport,
+    pub classification: Classification,
 }
 
 /// Decodes, quantizes, vectorizes, and renders `bytes` as an SVG
@@ -61,7 +64,9 @@ pub fn convert_bytes_to_svg(
     merge_adjacent: bool,
 ) -> Result<ConversionResult, PipelineError> {
     let tone_count = ToneCount::new(tone_count)?;
-    let image = load_luminance_from_bytes(bytes)?;
+    let rgb_image = load_rgb_from_bytes(bytes)?;
+    let classification = classify(&analyze(&rgb_image));
+    let image = rgb_image.to_luminance();
     let tone_map = quantize_linear(&image.samples, image.width, image.height, tone_count)?;
 
     let vectorizer = VtracerVectorizer::new(min_area_px2);
@@ -92,7 +97,11 @@ pub fn convert_bytes_to_svg(
     );
     let validation = validate(&svg, tone_map.width, tone_map.height, tone_count.get());
 
-    Ok(ConversionResult { svg, validation })
+    Ok(ConversionResult {
+        svg,
+        validation,
+        classification,
+    })
 }
 
 /// Reads the image at `path` and runs [`convert_bytes_to_svg`] on it.
@@ -208,6 +217,20 @@ mod tests {
         .unwrap();
         assert!(result.svg.contains("<path"));
         assert!(result.validation.has_no_open_paths());
+    }
+
+    #[test]
+    fn includes_a_heuristic_classification() {
+        let result = convert_bytes_to_svg(
+            &synthetic_png(),
+            96.0,
+            2,
+            laserprep_vectorize::DEFAULT_MIN_AREA_PX2,
+            false,
+            false,
+        )
+        .unwrap();
+        assert!((0.0..=1.0).contains(&result.classification.confidence));
     }
 
     #[test]

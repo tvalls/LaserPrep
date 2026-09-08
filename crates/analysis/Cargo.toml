@@ -9,3 +9,4 @@ description = "Deterministic heuristic feature extraction and content classifica
 
 [dependencies]
 laserprep-imaging.workspace = true
+serde.workspace = true

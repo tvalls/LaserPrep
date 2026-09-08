@@ -32,7 +32,11 @@ const cleanValidation = {
 };
 
 function conversionResult(overrides: Partial<typeof cleanValidation> = {}) {
-  return { svg: "<svg></svg>", validation: { ...cleanValidation, ...overrides } };
+  return {
+    svg: "<svg></svg>",
+    validation: { ...cleanValidation, ...overrides },
+    classification: { category: "GenericPhoto" as const, confidence: 0.25 },
+  };
 }
 
 describe("App", () => {
@@ -83,6 +87,25 @@ describe("App", () => {
     );
     expect(screen.getByRole("button", { name: "Export SVG" })).toBeEnabled();
     expect(screen.getByText("3 paths, 12 nodes.")).toBeInTheDocument();
+  });
+
+  it("shows the detected content category and confidence", async () => {
+    open.mockResolvedValue("/tmp/photo.png");
+    invoke.mockResolvedValue({
+      svg: "<svg></svg>",
+      validation: cleanValidation,
+      classification: { category: "Logo", confidence: 0.8 },
+    });
+    const user = userEvent.setup();
+
+    render(<App />);
+    await user.click(screen.getByRole("button", { name: "Import Image" }));
+
+    expect(
+      await screen.findByText(
+        "Detected category: Logo / isolated mark (80% confidence).",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("shows a warning when the validator finds open paths", async () => {

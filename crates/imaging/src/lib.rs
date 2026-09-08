@@ -32,6 +32,27 @@ pub struct RgbImage {
     pub samples: Vec<[u8; 3]>,
 }
 
+impl RgbImage {
+    /// Converts to grayscale luminance (ITU-R BT.601 weights) without
+    /// re-decoding the source bytes — for callers that already
+    /// decoded an [`RgbImage`] (e.g. for [`laserprep_analysis`]) and
+    /// also need luminance for quantization.
+    pub fn to_luminance(&self) -> LuminanceImage {
+        LuminanceImage {
+            width: self.width,
+            height: self.height,
+            samples: self
+                .samples
+                .iter()
+                .map(|&[r, g, b]| {
+                    (0.299 * f64::from(r) + 0.587 * f64::from(g) + 0.114 * f64::from(b)).round()
+                        as u8
+                })
+                .collect(),
+        }
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum ImagingError {
     #[error("failed to decode image: {0}")]
@@ -149,5 +170,22 @@ mod tests {
         assert_eq!(decoded.width, 2);
         assert_eq!(decoded.height, 1);
         assert_eq!(decoded.samples, vec![[10, 20, 30], [200, 100, 50]]);
+    }
+
+    #[test]
+    fn converts_rgb_to_luminance_without_redecoding() {
+        let image = RgbImage {
+            width: 3,
+            height: 1,
+            samples: vec![[0, 0, 0], [255, 255, 255], [255, 0, 0]],
+        };
+        let luminance = image.to_luminance();
+
+        assert_eq!(luminance.width, 3);
+        assert_eq!(luminance.height, 1);
+        assert_eq!(luminance.samples[0], 0);
+        assert_eq!(luminance.samples[1], 255);
+        // Pure red under ITU-R BT.601 weights: 0.299 * 255 ≈ 76.
+        assert_eq!(luminance.samples[2], 76);
     }
 }

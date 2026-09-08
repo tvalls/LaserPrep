@@ -25,6 +25,7 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 
 laserprep-domain.workspace = true
+laserprep-analysis.workspace = true
 laserprep-imaging.workspace = true
 laserprep-quantize.workspace = true
 laserprep-vectorize.workspace = true
