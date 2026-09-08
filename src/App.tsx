@@ -36,10 +36,27 @@ type Classification = {
   confidence: number;
 };
 
+type PresetName =
+  | "Photo"
+  | "Portrait"
+  | "Animal"
+  | "Logo"
+  | "Drawing"
+  | "Landscape";
+
+type Preset = {
+  name: PresetName;
+  toneCount: number;
+  minAreaPx2: number;
+  includeLegend: boolean;
+  mergeAdjacent: boolean;
+};
+
 type ConversionResult = {
   svg: string;
   validation: ValidationReport;
   classification: Classification;
+  suggestedPreset: Preset;
 };
 
 const CATEGORY_LABEL_KEYS: Record<ContentCategory, string> = {
@@ -48,6 +65,15 @@ const CATEGORY_LABEL_KEYS: Record<ContentCategory, string> = {
   Landscape: "category.landscape",
   ComplexBackground: "category.complexBackground",
   GenericPhoto: "category.genericPhoto",
+};
+
+const PRESET_LABEL_KEYS: Record<PresetName, string> = {
+  Photo: "preset.photo",
+  Portrait: "preset.portrait",
+  Animal: "preset.animal",
+  Logo: "preset.logo",
+  Drawing: "preset.drawing",
+  Landscape: "preset.landscape",
 };
 
 export default function App() {
@@ -62,6 +88,7 @@ export default function App() {
   const [classification, setClassification] = useState<Classification | null>(
     null,
   );
+  const [suggestedPreset, setSuggestedPreset] = useState<Preset | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
 
@@ -98,13 +125,22 @@ export default function App() {
       setSvg(result.svg);
       setValidation(result.validation);
       setClassification(result.classification);
+      setSuggestedPreset(result.suggestedPreset);
       setStatus({ kind: "converted" });
     } catch (error) {
       setSvg(null);
       setValidation(null);
       setClassification(null);
+      setSuggestedPreset(null);
       setStatus({ kind: "error", message: String(error) });
     }
+  }
+
+  function applyPreset(preset: Preset) {
+    setToneCount(preset.toneCount);
+    setMinAreaPx2(preset.minAreaPx2);
+    setIncludeLegend(preset.includeLegend);
+    setMergeAdjacent(preset.mergeAdjacent);
   }
 
   async function handleExport() {
@@ -220,6 +256,17 @@ export default function App() {
             category: t(CATEGORY_LABEL_KEYS[classification.category]),
             confidence: Math.round(classification.confidence * 100),
           })}
+        </p>
+      )}
+
+      {suggestedPreset && (
+        <p>
+          {t("preset.suggestion", {
+            preset: t(PRESET_LABEL_KEYS[suggestedPreset.name]),
+          })}{" "}
+          <button type="button" onClick={() => applyPreset(suggestedPreset)}>
+            {t("preset.applyButton")}
+          </button>
         </p>
       )}
 

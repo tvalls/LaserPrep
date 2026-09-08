@@ -10,6 +10,7 @@ use laserprep_analysis::{Classification, analyze, classify};
 use laserprep_domain::{ToneCount, ToneCountError};
 use laserprep_imaging::{ImagingError, load_rgb_from_bytes};
 use laserprep_optimize::merge_adjacent_regions;
+use laserprep_presets::{Preset, suggest_preset};
 use laserprep_quantize::{QuantizeError, quantize_linear};
 use laserprep_svggen::{SvgOptions, ValidationReport, validate, vectorized_tones_to_svg};
 use laserprep_vectorize::{
@@ -44,6 +45,10 @@ pub struct ConversionResult {
     pub svg: String,
     pub validation: ValidationReport,
     pub classification: Classification,
+    /// The preset (CLAUDE.md Section 12) `laserprep_presets` suggests
+    /// for `classification.category` — a starting point the UI can
+    /// offer to apply, not a decision this pipeline makes for the user.
+    pub suggested_preset: Preset,
 }
 
 /// Decodes, quantizes, vectorizes, and renders `bytes` as an SVG
@@ -96,11 +101,13 @@ pub fn convert_bytes_to_svg(
         },
     );
     let validation = validate(&svg, tone_map.width, tone_map.height, tone_count.get());
+    let suggested_preset = suggest_preset(classification.category);
 
     Ok(ConversionResult {
         svg,
         validation,
         classification,
+        suggested_preset,
     })
 }
 
@@ -231,6 +238,23 @@ mod tests {
         )
         .unwrap();
         assert!((0.0..=1.0).contains(&result.classification.confidence));
+    }
+
+    #[test]
+    fn includes_a_suggested_preset_matching_the_classification() {
+        let result = convert_bytes_to_svg(
+            &synthetic_png(),
+            96.0,
+            2,
+            laserprep_vectorize::DEFAULT_MIN_AREA_PX2,
+            false,
+            false,
+        )
+        .unwrap();
+        assert_eq!(
+            result.suggested_preset,
+            laserprep_presets::suggest_preset(result.classification.category)
+        );
     }
 
     #[test]

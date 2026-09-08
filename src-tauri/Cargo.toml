@@ -30,6 +30,7 @@ laserprep-imaging.workspace = true
 laserprep-quantize.workspace = true
 laserprep-vectorize.workspace = true
 laserprep-optimize.workspace = true
+laserprep-presets.workspace = true
 laserprep-svggen.workspace = true
 laserprep-settings.workspace = true
 

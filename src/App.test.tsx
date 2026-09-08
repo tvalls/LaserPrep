@@ -31,11 +31,20 @@ const cleanValidation = {
   lightburnIncompatibilities: [] as string[],
 };
 
+const photoPreset = {
+  name: "Photo" as const,
+  toneCount: 5,
+  minAreaPx2: 16,
+  includeLegend: false,
+  mergeAdjacent: false,
+};
+
 function conversionResult(overrides: Partial<typeof cleanValidation> = {}) {
   return {
     svg: "<svg></svg>",
     validation: { ...cleanValidation, ...overrides },
     classification: { category: "GenericPhoto" as const, confidence: 0.25 },
+    suggestedPreset: photoPreset,
   };
 }
 
@@ -95,6 +104,13 @@ describe("App", () => {
       svg: "<svg></svg>",
       validation: cleanValidation,
       classification: { category: "Logo", confidence: 0.8 },
+      suggestedPreset: {
+        name: "Logo",
+        toneCount: 2,
+        minAreaPx2: 4,
+        includeLegend: false,
+        mergeAdjacent: true,
+      },
     });
     const user = userEvent.setup();
 
@@ -106,6 +122,36 @@ describe("App", () => {
         "Detected category: Logo / isolated mark (80% confidence).",
       ),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText("Suggested preset: Logo.", { exact: false }),
+    ).toBeInTheDocument();
+  });
+
+  it("applies the suggested preset's parameters when clicked", async () => {
+    open.mockResolvedValue("/tmp/photo.png");
+    invoke.mockResolvedValue({
+      svg: "<svg></svg>",
+      validation: cleanValidation,
+      classification: { category: "Logo", confidence: 0.8 },
+      suggestedPreset: {
+        name: "Logo",
+        toneCount: 2,
+        minAreaPx2: 4,
+        includeLegend: false,
+        mergeAdjacent: true,
+      },
+    });
+    const user = userEvent.setup();
+
+    render(<App />);
+    await user.click(screen.getByRole("button", { name: "Import Image" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Apply preset" }),
+    );
+
+    expect(screen.getByLabelText("Tone count")).toHaveValue(2);
+    expect(screen.getByLabelText("Minimum area (px²)")).toHaveValue(4);
+    expect(screen.getByLabelText("Merge adjacent regions")).toBeChecked();
   });
 
   it("shows a warning when the validator finds open paths", async () => {
