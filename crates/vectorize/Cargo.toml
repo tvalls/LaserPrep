@@ -8,4 +8,9 @@ authors.workspace = true
 description = "Raster-to-SVG tracing behind a Vectorizer trait (see docs/adr/0003)."
 
 [dependencies]
+laserprep-quantize.workspace = true
+thiserror.workspace = true
+vtracer = "0.6"
+
+[dev-dependencies]
 laserprep-domain.workspace = true
