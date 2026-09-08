@@ -29,9 +29,15 @@ speed to.
 
 ## Legend group structure
 
-Not implemented yet — planned for a later Phase 2 iteration (CLAUDE.md
-Section 10: optional, editable, hideable caption swatches for each
-tone, kept outside the main artwork groups above).
+Optional (`SvgOptions::include_legend`, off by default). When enabled,
+`laserprep_svggen::vectorized_tones_to_svg` appends a `<g id="legend">`
+group after the tone-N artwork groups: one filled swatch plus its tone
+index per row, positioned to the right of the artwork (outside the
+main art, per CLAUDE.md Section 10). Being its own top-level `<g>`, it
+is independently hideable/editable as a LightBurn layer, same as any
+`tone-N` group. The document's width/viewBox grow to fit it; validator
+output (`ValidationReport`) is unaffected since it only counts
+`<path>` elements, and the legend uses `<rect>`/`<text>`.
 
 ## Embedded metadata
 

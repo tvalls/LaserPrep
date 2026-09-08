@@ -10,6 +10,7 @@
   "toneCount.label": "色调数量",
   "dpi.label": "源 DPI",
   "minArea.label": "最小面积（平方像素）",
+  "legend.label": "包含色调图例",
   "validation.summary": "{{totalPaths}} 条路径，{{totalNodes}} 个节点。",
   "validation.openPathsWarning": "警告：{{count}} 条开放路径。",
   "validation.lightburnWarning": "警告：与 LightBurn 不兼容。",

@@ -3,8 +3,9 @@
 //! closed/open/degenerate paths, self-intersections, node counts,
 //! LightBurn-compatibility checks). See CLAUDE.md Sections 9-10 and
 //! `docs/lightburn-compatibility.md`. Implemented in Phase 1 (basic SVG)
-//! and Phase 2 (real vectorization, validator; legend is still pending).
+//! and Phase 2 (real vectorization, validator, legend).
 
+mod legend;
 mod validator;
 
 pub use validator::{ValidationReport, validate};
@@ -16,11 +17,18 @@ pub struct SvgOptions {
     /// Source image resolution in dots per inch, used to size the SVG
     /// in physical units (CLAUDE.md Section 11: mm is the default unit).
     pub dpi: f64,
+    /// Whether to append an optional tone legend (CLAUDE.md Section
+    /// 10) outside the main artwork. Off by default so existing
+    /// documents/dimensions are unaffected unless requested.
+    pub include_legend: bool,
 }
 
 impl Default for SvgOptions {
     fn default() -> Self {
-        Self { dpi: 96.0 }
+        Self {
+            dpi: 96.0,
+            include_legend: false,
+        }
     }
 }
 
@@ -28,7 +36,10 @@ impl Default for SvgOptions {
 /// `<g id="tone-N">` per tone level (0..`tone_count`), containing that
 /// tone's traced `<path>` elements. `paths_by_tone[tone]` holds the
 /// paths for that tone; a missing or out-of-range index is treated as
-/// an empty (but still present) group.
+/// an empty (but still present) group. When `options.include_legend`
+/// is set, a `<g id="legend">` group is appended to the right of the
+/// artwork (CLAUDE.md Section 10) — its own layer, editable/hideable
+/// independently of the artwork groups above.
 pub fn vectorized_tones_to_svg(
     width: u32,
     height: u32,
@@ -36,12 +47,23 @@ pub fn vectorized_tones_to_svg(
     paths_by_tone: &[Vec<VectorPath>],
     options: &SvgOptions,
 ) -> String {
-    let width_mm = Length::from_pixels(f64::from(width), options.dpi).as_millimeters();
-    let height_mm = Length::from_pixels(f64::from(height), options.dpi).as_millimeters();
+    let document_width = if options.include_legend {
+        width + legend::RESERVED_WIDTH_PX
+    } else {
+        width
+    };
+    let document_height = if options.include_legend {
+        height.max(legend::legend_height_px(tone_count))
+    } else {
+        height
+    };
+
+    let width_mm = Length::from_pixels(f64::from(document_width), options.dpi).as_millimeters();
+    let height_mm = Length::from_pixels(f64::from(document_height), options.dpi).as_millimeters();
 
     let mut svg = String::new();
     svg.push_str(&format!(
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{width_mm:.3}mm\" height=\"{height_mm:.3}mm\" viewBox=\"0 0 {width} {height}\">\n",
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{width_mm:.3}mm\" height=\"{height_mm:.3}mm\" viewBox=\"0 0 {document_width} {document_height}\">\n",
     ));
     svg.push_str(&format!(
         "  <metadata>LaserPrep v{version}; tones={tones}; dpi={dpi}; algorithm=quantize-linear+vtracer</metadata>\n",
@@ -59,6 +81,10 @@ pub fn vectorized_tones_to_svg(
             }
         }
         svg.push_str("  </g>\n");
+    }
+
+    if options.include_legend {
+        svg.push_str(&legend::legend_fragment(tone_count, width));
     }
 
     svg.push_str("</svg>\n");
@@ -115,11 +141,49 @@ mod tests {
     #[test]
     fn sizes_the_viewport_from_dpi() {
         let tone_count = ToneCount::default();
-        let svg = vectorized_tones_to_svg(2, 2, tone_count, &[], &SvgOptions { dpi: 96.0 });
+        let svg = vectorized_tones_to_svg(
+            2,
+            2,
+            tone_count,
+            &[],
+            &SvgOptions {
+                dpi: 96.0,
+                include_legend: false,
+            },
+        );
 
         // 2 px at 96 dpi = 2 / 96 in = 0.5292 mm.
         assert!(svg.contains("width=\"0.529mm\""));
         assert!(svg.contains("viewBox=\"0 0 2 2\""));
+    }
+
+    #[test]
+    fn appends_a_legend_group_when_requested() {
+        let tone_count = ToneCount::new(2).unwrap();
+        let svg = vectorized_tones_to_svg(
+            100,
+            50,
+            tone_count,
+            &[],
+            &SvgOptions {
+                dpi: 96.0,
+                include_legend: true,
+            },
+        );
+
+        assert!(svg.contains("<g id=\"legend\""));
+        assert_eq!(svg.matches("<rect").count(), 2);
+        // The legend group must come after both tone groups, i.e.
+        // outside/after the main artwork (CLAUDE.md Section 10).
+        let last_tone_group = svg.rfind("<g id=\"tone-").unwrap();
+        let legend_group = svg.find("<g id=\"legend\"").unwrap();
+        assert!(legend_group > last_tone_group);
+    }
+
+    #[test]
+    fn omits_the_legend_group_by_default() {
+        let svg = vectorized_tones_to_svg(2, 2, ToneCount::default(), &[], &SvgOptions::default());
+        assert!(!svg.contains("legend"));
     }
 
     #[test]
