@@ -16,10 +16,20 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
 serde.workspace = true
 serde_json.workspace = true
 anyhow.workspace = true
+thiserror.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 
+laserprep-domain.workspace = true
+laserprep-imaging.workspace = true
+laserprep-quantize.workspace = true
+laserprep-svggen.workspace = true
 laserprep-settings.workspace = true
+
+[dev-dependencies]
+image.workspace = true
+tempfile = "3"

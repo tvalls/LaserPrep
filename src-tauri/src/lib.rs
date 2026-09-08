@@ -3,6 +3,9 @@
 //! (added starting Phase 1) — the UI never depends on those crates
 //! directly. See `docs/architecture.md`.
 
+mod commands;
+mod pipeline;
+
 use laserprep_settings::SettingsStore;
 use tauri::Manager;
 
@@ -13,6 +16,11 @@ pub fn run() {
         .init();
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .invoke_handler(tauri::generate_handler![
+            commands::convert_image_file,
+            commands::save_svg_file
+        ])
         .setup(|app| {
             let config_dir = match app.path().app_config_dir() {
                 Ok(dir) => dir,
