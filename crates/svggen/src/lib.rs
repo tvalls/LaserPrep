@@ -3,7 +3,11 @@
 //! closed/open/degenerate paths, self-intersections, node counts,
 //! LightBurn-compatibility checks). See CLAUDE.md Sections 9-10 and
 //! `docs/lightburn-compatibility.md`. Implemented in Phase 1 (basic SVG)
-//! and Phase 2 (real vectorization, legend, validator).
+//! and Phase 2 (real vectorization, validator; legend is still pending).
+
+mod validator;
+
+pub use validator::{ValidationReport, validate};
 
 use laserprep_domain::{Length, ToneCount};
 use laserprep_vectorize::VectorPath;
@@ -116,5 +120,43 @@ mod tests {
         // 2 px at 96 dpi = 2 / 96 in = 0.5292 mm.
         assert!(svg.contains("width=\"0.529mm\""));
         assert!(svg.contains("viewBox=\"0 0 2 2\""));
+    }
+
+    #[test]
+    fn a_real_vectorized_document_validates_clean() {
+        use laserprep_vectorize::{BinaryMask, Vectorizer, VtracerVectorizer};
+
+        let width = 12;
+        let height = 12;
+        let mut foreground = vec![false; (width * height) as usize];
+        for y in 2..height - 2 {
+            for x in 2..width - 2 {
+                foreground[(y * width + x) as usize] = true;
+            }
+        }
+        let mask = BinaryMask {
+            width,
+            height,
+            foreground,
+        };
+        let paths = VtracerVectorizer.trace(&mask).unwrap();
+        let tone_count = ToneCount::new(2).unwrap();
+        let paths_by_tone = vec![paths, vec![]];
+
+        let svg = vectorized_tones_to_svg(
+            width,
+            height,
+            tone_count,
+            &paths_by_tone,
+            &SvgOptions::default(),
+        );
+        let report = validate(&svg, width, height, tone_count.get());
+
+        assert_eq!(report.total_paths, 1);
+        assert!(report.has_no_open_paths());
+        assert!(report.has_valid_coordinates());
+        assert!(report.is_lightburn_compatible());
+        assert_eq!(report.degenerate_paths, 0);
+        assert!(report.total_nodes > 0);
     }
 }
