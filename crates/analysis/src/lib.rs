@@ -1,10 +1,22 @@
-//! Deterministic, classical-heuristics feature extraction.
+//! Deterministic, classical-heuristics feature extraction and content
+//! classification.
 //!
 //! Implemented in Phase 3: histogram/contrast, edge density, color
 //! saturation, and uniform-background ratio feed a hand-weighted
-//! scoring function per content category (added in a follow-up once
-//! this feature set is in place). No machine learning — see
+//! scoring function per content category. No machine learning — see
 //! `docs/adr/0002-no-ai-ml-classification.md`.
+//!
+//! [`classify`] only distinguishes categories that a global image
+//! statistic can actually separate: [`ContentCategory::UniformBackground`],
+//! [`ContentCategory::Logo`], [`ContentCategory::Landscape`], and
+//! [`ContentCategory::ComplexBackground`], falling back to
+//! [`ContentCategory::GenericPhoto`]. CLAUDE.md Section 6 lists finer
+//! categories (portrait, animal, vehicle, architecture, ...) that
+//! would need real subject/object localization to tell apart — Section
+//! 2 forbids exactly the trained detectors (Haar cascades, CNNs, etc.)
+//! that would take. Rather than fake that distinction with heuristics
+//! that can't actually make it, those categories are not attempted
+//! yet; this is a scope limitation, not an oversight.
 
 use laserprep_imaging::RgbImage;
 
@@ -203,6 +215,117 @@ fn edge_density(luminance: &[f64], width: u32, height: u32) -> f64 {
     edge_pixels as f64 / interior_pixels as f64
 }
 
+/// A content category [`classify`] can assign. See the module doc
+/// comment for which CLAUDE.md Section 6 categories are deliberately
+/// not attempted yet.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ContentCategory {
+    /// The whole image is essentially flat: a uniform border and
+    /// almost no edge content anywhere (e.g. a blank/near-blank scan).
+    UniformBackground,
+    /// A mark or subject isolated on a plain, uniform background —
+    /// covers CLAUDE.md's "logo", "ícone", and "objeto/produto"
+    /// categories, which this heuristic set cannot tell apart from
+    /// each other (all three look the same to a global statistic:
+    /// uniform border, real content in the middle).
+    Logo,
+    /// Wide framing with content filling the frame edge to edge (no
+    /// isolated subject on a plain background).
+    Landscape,
+    /// Content fills the frame edge to edge with high edge density,
+    /// regardless of aspect ratio (a busy or textured scene).
+    ComplexBackground,
+    /// Fallback when no other category's rule fires.
+    GenericPhoto,
+}
+
+/// The result of [`classify`]: a category plus a heuristic confidence
+/// in `0.0..=1.0`. The confidence is the winning category's rule
+/// score, not a calibrated statistical probability — see CLAUDE.md
+/// Section 2 ("confiança calculada a partir de score heurístico, nunca
+/// de um modelo").
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Classification {
+    pub category: ContentCategory,
+    pub confidence: f64,
+}
+
+/// Edge density below this, combined with a uniform border, means the
+/// whole image is essentially blank — not just its border.
+const FLAT_EDGE_DENSITY: f64 = 0.02;
+/// Edge density above this is too busy to call an isolated mark on a
+/// plain background, even if the border itself is uniform.
+const LOGO_MAX_EDGE_DENSITY: f64 = 0.3;
+/// Baseline score for the fallback category: any real rule must beat
+/// this to win instead.
+const GENERIC_PHOTO_BASELINE: f64 = 0.25;
+
+/// Classifies `features` by picking the highest-scoring rule below,
+/// falling back to [`ContentCategory::GenericPhoto`] when none of them
+/// fire strongly. Each rule is a simple, documented threshold — not a
+/// fitted/trained function (CLAUDE.md Section 2).
+pub fn classify(features: &ImageFeatures) -> Classification {
+    let candidates = [
+        (
+            ContentCategory::UniformBackground,
+            uniform_background_score(features),
+        ),
+        (ContentCategory::Logo, logo_score(features)),
+        (ContentCategory::Landscape, landscape_score(features)),
+        (
+            ContentCategory::ComplexBackground,
+            complex_background_score(features),
+        ),
+        (ContentCategory::GenericPhoto, GENERIC_PHOTO_BASELINE),
+    ];
+
+    let (category, confidence) = candidates
+        .into_iter()
+        .max_by(|a, b| a.1.total_cmp(&b.1))
+        .expect("candidates is non-empty");
+
+    Classification {
+        category,
+        confidence: confidence.clamp(0.0, 1.0),
+    }
+}
+
+fn uniform_background_score(f: &ImageFeatures) -> f64 {
+    if f.uniform_background_ratio > 0.9 && f.edge_density < FLAT_EDGE_DENSITY {
+        f.uniform_background_ratio
+    } else {
+        0.0
+    }
+}
+
+fn logo_score(f: &ImageFeatures) -> f64 {
+    if f.uniform_background_ratio > 0.75
+        && (FLAT_EDGE_DENSITY..LOGO_MAX_EDGE_DENSITY).contains(&f.edge_density)
+    {
+        f.uniform_background_ratio * (f.contrast / 128.0).min(1.0)
+    } else {
+        0.0
+    }
+}
+
+fn landscape_score(f: &ImageFeatures) -> f64 {
+    if f.aspect_ratio > 1.3 && f.uniform_background_ratio < 0.6 {
+        let aspect_bonus = ((f.aspect_ratio - 1.3) / 1.0).clamp(0.0, 1.0);
+        let fill_bonus = 1.0 - f.uniform_background_ratio;
+        (aspect_bonus + fill_bonus) / 2.0
+    } else {
+        0.0
+    }
+}
+
+fn complex_background_score(f: &ImageFeatures) -> f64 {
+    if f.uniform_background_ratio < 0.5 {
+        (1.0 - f.uniform_background_ratio) * (f.edge_density * 4.0).min(1.0)
+    } else {
+        0.0
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -296,5 +419,126 @@ mod tests {
         let image = solid_image(16, 8, [0, 0, 0]);
         let features = analyze(&image);
         assert!((features.aspect_ratio - 2.0).abs() < 1e-9);
+    }
+
+    fn checkerboard(width: u32, height: u32) -> RgbImage {
+        let mut samples = Vec::with_capacity((width * height) as usize);
+        for y in 0..height {
+            for x in 0..width {
+                let is_light = (x / 2 + y / 2) % 2 == 0;
+                samples.push(if is_light { [255, 255, 255] } else { [0, 0, 0] });
+            }
+        }
+        RgbImage {
+            width,
+            height,
+            samples,
+        }
+    }
+
+    /// A horizontal band per row of a distinct, saturated color —
+    /// stands in for a "sky / hills / ground" landscape composition:
+    /// wide framing, content filling the frame edge to edge, no plain
+    /// border.
+    fn banded_landscape(width: u32, height: u32) -> RgbImage {
+        let bands: [[u8; 3]; 3] = [[135, 206, 235], [34, 139, 34], [139, 69, 19]];
+        let mut samples = Vec::with_capacity((width * height) as usize);
+        for y in 0..height {
+            let band = bands[(y * bands.len() as u32 / height) as usize];
+            for _ in 0..width {
+                samples.push(band);
+            }
+        }
+        RgbImage {
+            width,
+            height,
+            samples,
+        }
+    }
+
+    /// A smooth diagonal gradient: no sharp edges (low edge density)
+    /// and no plain border (every border pixel is a different shade),
+    /// so it shouldn't strongly match any of the specific rules.
+    fn smooth_gradient(size: u32) -> RgbImage {
+        let mut samples = Vec::with_capacity((size * size) as usize);
+        for y in 0..size {
+            for x in 0..size {
+                let t = (x + y) as f64 / (2 * size) as f64;
+                let level = (t * 255.0).round() as u8;
+                samples.push([level, level, level]);
+            }
+        }
+        RgbImage {
+            width: size,
+            height: size,
+            samples,
+        }
+    }
+
+    #[test]
+    fn classifies_a_solid_image_as_uniform_background() {
+        let features = analyze(&solid_image(20, 20, [240, 240, 240]));
+        let classification = classify(&features);
+
+        assert_eq!(classification.category, ContentCategory::UniformBackground);
+        assert!(classification.confidence > 0.9);
+    }
+
+    #[test]
+    fn classifies_a_mark_on_a_plain_background_as_logo() {
+        let width = 20;
+        let height = 20;
+        let mut samples = vec![[255, 255, 255]; (width * height) as usize];
+        for y in 5..15 {
+            for x in 5..15 {
+                samples[(y * width + x) as usize] = [0, 0, 0];
+            }
+        }
+        let features = analyze(&RgbImage {
+            width,
+            height,
+            samples,
+        });
+        let classification = classify(&features);
+
+        assert_eq!(classification.category, ContentCategory::Logo);
+    }
+
+    #[test]
+    fn classifies_a_wide_banded_scene_as_landscape() {
+        let features = analyze(&banded_landscape(30, 15));
+        let classification = classify(&features);
+
+        assert_eq!(classification.category, ContentCategory::Landscape);
+    }
+
+    #[test]
+    fn classifies_a_busy_square_texture_as_complex_background() {
+        let features = analyze(&checkerboard(16, 16));
+        let classification = classify(&features);
+
+        assert_eq!(classification.category, ContentCategory::ComplexBackground);
+    }
+
+    #[test]
+    fn falls_back_to_generic_photo_when_no_rule_fires() {
+        let features = analyze(&smooth_gradient(20));
+        let classification = classify(&features);
+
+        assert_eq!(classification.category, ContentCategory::GenericPhoto);
+        assert_eq!(classification.confidence, GENERIC_PHOTO_BASELINE);
+    }
+
+    #[test]
+    fn confidence_is_always_within_bounds() {
+        for image in [
+            solid_image(10, 10, [10, 20, 30]),
+            checkerboard(12, 12),
+            banded_landscape(24, 10),
+            smooth_gradient(15),
+        ] {
+            let classification = classify(&analyze(&image));
+            assert!((0.0..=1.0).contains(&classification.confidence));
+        }
     }
 }
