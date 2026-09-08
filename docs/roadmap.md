@@ -5,9 +5,9 @@ tested state of the previous one — there is no phase where the
 application is left in a partially-fake state (see CLAUDE.md Section 13).
 
 - **Phase 0** — Architecture, CI, repository, initial documentation,
-  minimal buildable skeleton. *(current)*
+  minimal buildable skeleton. *(done)*
 - **Phase 1** — Import, preview, basic processing, quantization, basic
-  SVG, export.
+  SVG, export. *(current)*
 - **Phase 2** — Advanced vectorization, path closing, simplification,
   noise removal, legend, SVG validator.
 - **Phase 3** — Heuristic content classification, category-specific
