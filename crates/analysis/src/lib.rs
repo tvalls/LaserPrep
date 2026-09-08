@@ -218,7 +218,7 @@ fn edge_density(luminance: &[f64], width: u32, height: u32) -> f64 {
 /// A content category [`classify`] can assign. See the module doc
 /// comment for which CLAUDE.md Section 6 categories are deliberately
 /// not attempted yet.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 pub enum ContentCategory {
     /// The whole image is essentially flat: a uniform border and
     /// almost no edge content anywhere (e.g. a blank/near-blank scan).
@@ -244,7 +244,8 @@ pub enum ContentCategory {
 /// score, not a calibrated statistical probability — see CLAUDE.md
 /// Section 2 ("confiança calculada a partir de score heurístico, nunca
 /// de um modelo").
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Classification {
     pub category: ContentCategory,
     pub confidence: f64,

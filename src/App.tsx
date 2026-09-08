@@ -24,9 +24,30 @@ type ValidationReport = {
   lightburnIncompatibilities: string[];
 };
 
+type ContentCategory =
+  | "UniformBackground"
+  | "Logo"
+  | "Landscape"
+  | "ComplexBackground"
+  | "GenericPhoto";
+
+type Classification = {
+  category: ContentCategory;
+  confidence: number;
+};
+
 type ConversionResult = {
   svg: string;
   validation: ValidationReport;
+  classification: Classification;
+};
+
+const CATEGORY_LABEL_KEYS: Record<ContentCategory, string> = {
+  UniformBackground: "category.uniformBackground",
+  Logo: "category.logo",
+  Landscape: "category.landscape",
+  ComplexBackground: "category.complexBackground",
+  GenericPhoto: "category.genericPhoto",
 };
 
 export default function App() {
@@ -38,6 +59,9 @@ export default function App() {
   const [mergeAdjacent, setMergeAdjacent] = useState(false);
   const [svg, setSvg] = useState<string | null>(null);
   const [validation, setValidation] = useState<ValidationReport | null>(null);
+  const [classification, setClassification] = useState<Classification | null>(
+    null,
+  );
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
 
@@ -73,10 +97,12 @@ export default function App() {
       });
       setSvg(result.svg);
       setValidation(result.validation);
+      setClassification(result.classification);
       setStatus({ kind: "converted" });
     } catch (error) {
       setSvg(null);
       setValidation(null);
+      setClassification(null);
       setStatus({ kind: "error", message: String(error) });
     }
   }
@@ -187,6 +213,15 @@ export default function App() {
       </button>
 
       <p role="status">{statusText}</p>
+
+      {classification && (
+        <p>
+          {t("classification.summary", {
+            category: t(CATEGORY_LABEL_KEYS[classification.category]),
+            confidence: Math.round(classification.confidence * 100),
+          })}
+        </p>
+      )}
 
       {validation && (
         <p>

@@ -1921,6 +1921,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "image 0.25.10",
+ "laserprep-analysis",
  "laserprep-domain",
  "laserprep-imaging",
  "laserprep-optimize",
@@ -1944,6 +1945,7 @@ name = "laserprep-analysis"
 version = "0.1.0"
 dependencies = [
  "laserprep-imaging",
+ "serde",
 ]
 
 [[package]]
