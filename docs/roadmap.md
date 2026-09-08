@@ -11,9 +11,13 @@ application is left in a partially-fake state (see CLAUDE.md Section 13).
 - **Phase 2** — Advanced vectorization, path closing, simplification,
   noise removal, legend, SVG validator. *(done)*
 - **Phase 3** — Heuristic content classification, category-specific
-  pipelines, presets. *(current)*
+  pipelines, presets. *(done — see docs/image-processing.md for the
+  honest scope: classification and presets cover only the categories a
+  global image statistic can actually separate; category-specific
+  *pipeline* choice is realized as preset parameter differentiation,
+  not structurally different code paths)*
 - **Phase 4** — Batch processing, `.lvp` projects, undo/history,
-  intermediate cache.
+  intermediate cache. *(current)*
 - **Phase 5** — LightBurn path-ordering optimization, Laser Optimization
   Score, advanced preview (before/after, per-tone, LightBurn preview).
 - **Phase 6** — Auto-update, bug reporting, crash reporting, full release
