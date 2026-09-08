@@ -1,13 +1,15 @@
-//! Orchestrates the Phase 1 conversion pipeline (CLAUDE.md Section 6:
-//! IMPORTAÇÃO → ... → QUANTIZAÇÃO EM TONS → ... → GERAÇÃO DO SVG) by
-//! sequencing calls into `crates/imaging`, `crates/quantize`, and
-//! `crates/svggen`. Contains no algorithms of its own — see
-//! `docs/architecture.md` ("UI nunca acoplada aos algoritmos").
+//! Orchestrates the Phase 1/2 conversion pipeline (CLAUDE.md Section 6:
+//! IMPORTAÇÃO → ... → QUANTIZAÇÃO EM TONS → SEGMENTAÇÃO → VETORIZAÇÃO →
+//! ... → GERAÇÃO DO SVG) by sequencing calls into `crates/imaging`,
+//! `crates/quantize`, `crates/vectorize`, and `crates/svggen`. Contains
+//! no algorithms of its own — see `docs/architecture.md` ("UI nunca
+//! acoplada aos algoritmos").
 
 use laserprep_domain::{ToneCount, ToneCountError};
 use laserprep_imaging::{ImagingError, load_luminance_from_bytes};
 use laserprep_quantize::{QuantizeError, quantize_linear};
-use laserprep_svggen::{SvgOptions, tone_map_to_svg};
+use laserprep_svggen::{SvgOptions, vectorized_tones_to_svg};
+use laserprep_vectorize::{BinaryMask, VectorPath, VectorizeError, Vectorizer, VtracerVectorizer};
 use std::path::Path;
 
 #[derive(Debug, thiserror::Error)]
@@ -18,13 +20,16 @@ pub enum PipelineError {
     Imaging(#[from] ImagingError),
     #[error(transparent)]
     Quantize(#[from] QuantizeError),
+    #[error(transparent)]
+    Vectorize(#[from] VectorizeError),
     #[error("failed to read image file: {0}")]
     ReadFile(std::io::Error),
     #[error("failed to write SVG file: {0}")]
     WriteFile(std::io::Error),
 }
 
-/// Decodes, quantizes, and renders `bytes` as an SVG document.
+/// Decodes, quantizes, vectorizes, and renders `bytes` as an SVG
+/// document — one traced `<path>` set per tone level.
 pub fn convert_bytes_to_svg(
     bytes: &[u8],
     dpi: f64,
@@ -33,7 +38,22 @@ pub fn convert_bytes_to_svg(
     let tone_count = ToneCount::new(tone_count)?;
     let image = load_luminance_from_bytes(bytes)?;
     let tone_map = quantize_linear(&image.samples, image.width, image.height, tone_count)?;
-    Ok(tone_map_to_svg(&tone_map, &SvgOptions { dpi }))
+
+    let vectorizer = VtracerVectorizer;
+    let paths_by_tone: Vec<Vec<VectorPath>> = (0..tone_count.get())
+        .map(|tone| {
+            let mask = BinaryMask::from_tone_map(&tone_map, tone);
+            vectorizer.trace(&mask)
+        })
+        .collect::<Result<_, _>>()?;
+
+    Ok(vectorized_tones_to_svg(
+        tone_map.width,
+        tone_map.height,
+        tone_count,
+        &paths_by_tone,
+        &SvgOptions { dpi },
+    ))
 }
 
 /// Reads the image at `path` and runs [`convert_bytes_to_svg`] on it.
@@ -54,11 +74,15 @@ mod tests {
     use std::io::Cursor;
 
     fn synthetic_png() -> Vec<u8> {
-        let mut buffer = ImageBuffer::<Rgb<u8>, Vec<u8>>::new(2, 2);
-        buffer.put_pixel(0, 0, Rgb([0, 0, 0]));
-        buffer.put_pixel(1, 0, Rgb([255, 255, 255]));
-        buffer.put_pixel(0, 1, Rgb([0, 0, 0]));
-        buffer.put_pixel(1, 1, Rgb([255, 255, 255]));
+        // A 12x12 image with a solid dark 8x8 square on a light
+        // background, large enough to survive vtracer's speckle filter
+        // and produce a real traced path per tone.
+        let mut buffer = ImageBuffer::<Rgb<u8>, Vec<u8>>::from_pixel(12, 12, Rgb([255, 255, 255]));
+        for y in 2..10 {
+            for x in 2..10 {
+                buffer.put_pixel(x, y, Rgb([0, 0, 0]));
+            }
+        }
 
         let mut bytes = Vec::new();
         buffer
@@ -73,6 +97,7 @@ mod tests {
         assert!(svg.starts_with("<svg "));
         assert!(svg.contains("<g id=\"tone-0\">"));
         assert!(svg.contains("<g id=\"tone-1\">"));
+        assert!(svg.contains("<path"));
     }
 
     #[test]
