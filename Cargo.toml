@@ -4,6 +4,7 @@ members = [
     "src-tauri",
     "crates/domain",
     "crates/analysis",
+    "crates/imaging",
     "crates/quantize",
     "crates/vectorize",
     "crates/optimize",
@@ -23,6 +24,7 @@ authors = ["LaserPrep contributors"]
 [workspace.dependencies]
 laserprep-domain = { path = "crates/domain" }
 laserprep-analysis = { path = "crates/analysis" }
+laserprep-imaging = { path = "crates/imaging" }
 laserprep-quantize = { path = "crates/quantize" }
 laserprep-vectorize = { path = "crates/vectorize" }
 laserprep-optimize = { path = "crates/optimize" }
@@ -31,6 +33,7 @@ laserprep-presets = { path = "crates/presets" }
 laserprep-project = { path = "crates/project" }
 laserprep-settings = { path = "crates/settings" }
 
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 anyhow = "1"
