@@ -8,4 +8,4 @@ authors.workspace = true
 description = "Deterministic heuristic feature extraction and content classification (no AI/ML — see docs/adr/0002)."
 
 [dependencies]
-laserprep-domain.workspace = true
+laserprep-imaging.workspace = true

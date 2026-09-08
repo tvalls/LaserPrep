@@ -1943,7 +1943,7 @@ dependencies = [
 name = "laserprep-analysis"
 version = "0.1.0"
 dependencies = [
- "laserprep-domain",
+ "laserprep-imaging",
 ]
 
 [[package]]
