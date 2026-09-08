@@ -9,3 +9,4 @@ description = "N-tone grayscale quantization (linear, perceptual, adaptive, hist
 
 [dependencies]
 laserprep-domain.workspace = true
+thiserror.workspace = true
