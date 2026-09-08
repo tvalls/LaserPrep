@@ -1,0 +1,12 @@
+[package]
+name = "laserprep-project"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "The .lvp project file format: original image, parameters, preset, analysis, tones, dimensions, result, algorithm version."
+
+[dependencies]
+laserprep-domain.workspace = true
+serde.workspace = true

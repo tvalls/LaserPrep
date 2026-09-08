@@ -1,0 +1,11 @@
+[package]
+name = "laserprep-svggen"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "SVG document assembly (tone groups, legend, metadata) and the SVG/LightBurn compatibility validator."
+
+[dependencies]
+laserprep-domain.workspace = true

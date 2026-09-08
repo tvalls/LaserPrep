@@ -1,0 +1,8 @@
+{
+  "app.title": "LaserPrep",
+  "app.tagline": "Convierte imágenes en SVG listos para grabado láser.",
+  "app.status.phase0": "Estructura de la Fase 0 — el proceso de conversión aún no está implementado.",
+  "common.ok": "Aceptar",
+  "common.cancel": "Cancelar",
+  "language.switcher.label": "Idioma"
+}

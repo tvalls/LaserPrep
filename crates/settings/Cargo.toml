@@ -1,0 +1,16 @@
+[package]
+name = "laserprep-settings"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Versioned JSON settings with backward-compatible migrations, atomic writes, and corruption recovery (auto-ci Standard 7)."
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+tempfile = "3"

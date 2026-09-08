@@ -1,0 +1,11 @@
+[package]
+name = "laserprep-quantize"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "N-tone grayscale quantization (linear, perceptual, adaptive, histogram, per-region)."
+
+[dependencies]
+laserprep-domain.workspace = true

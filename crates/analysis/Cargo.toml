@@ -1,0 +1,11 @@
+[package]
+name = "laserprep-analysis"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Deterministic heuristic feature extraction and content classification (no AI/ML — see docs/adr/0002)."
+
+[dependencies]
+laserprep-domain.workspace = true
