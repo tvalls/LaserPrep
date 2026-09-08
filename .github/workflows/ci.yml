@@ -24,11 +24,19 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Install frontend dependencies
         run: npm ci
+
+      - name: Audit Rust dependencies
+        uses: rustsec/audit-check@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Audit production npm dependencies
+        run: npm audit --omit=dev
 
       - name: Validate localization resources
         run: node scripts/validate-locales.mjs
