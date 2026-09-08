@@ -11,6 +11,10 @@ description = "Raster-to-SVG tracing behind a Vectorizer trait (see docs/adr/000
 laserprep-quantize.workspace = true
 thiserror.workspace = true
 vtracer = "0.6"
+# Same version vtracer 0.6 depends on: needed to read the raw polygon
+# points vtracer::convert() returns in PathSimplifyMode::Polygon mode
+# (see trace_polygons). Never re-exported outside this crate (ADR 0003).
+visioncortex = "0.8"
 
 [dev-dependencies]
 laserprep-domain.workspace = true

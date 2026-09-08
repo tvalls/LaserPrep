@@ -11,6 +11,7 @@
   "dpi.label": "Source DPI",
   "minArea.label": "Minimum area (px²)",
   "legend.label": "Include tone legend",
+  "mergeAdjacent.label": "Merge adjacent regions",
   "validation.summary": "{{totalPaths}} paths, {{totalNodes}} nodes.",
   "validation.openPathsWarning": "Warning: {{count}} open path(s).",
   "validation.lightburnWarning": "Warning: not LightBurn-compatible.",
