@@ -108,6 +108,19 @@ pub fn load_rgb_from_bytes(bytes: &[u8]) -> Result<RgbImage, ImagingError> {
     })
 }
 
+/// Guesses the MIME type of encoded image `bytes` from their content
+/// (magic-byte sniffing, not a file extension) — for embedding the
+/// original, undecoded bytes as a `data:` URL (the UI's before/after
+/// preview). `None` for a format `load_rgb_from_bytes`/
+/// `load_luminance_from_bytes` wouldn't accept either.
+pub fn guess_mime_type(bytes: &[u8]) -> Option<&'static str> {
+    match image::guess_format(bytes).ok()? {
+        image::ImageFormat::Png => Some("image/png"),
+        image::ImageFormat::Jpeg => Some("image/jpeg"),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -170,6 +183,17 @@ mod tests {
         assert_eq!(decoded.width, 2);
         assert_eq!(decoded.height, 1);
         assert_eq!(decoded.samples, vec![[10, 20, 30], [200, 100, 50]]);
+    }
+
+    #[test]
+    fn guesses_png_mime_type_from_content() {
+        let bytes = encode_png(&[[1, 2, 3]], 1, 1);
+        assert_eq!(guess_mime_type(&bytes), Some("image/png"));
+    }
+
+    #[test]
+    fn guesses_no_mime_type_for_unrecognized_bytes() {
+        assert_eq!(guess_mime_type(&[1, 2, 3, 4]), None);
     }
 
     #[test]

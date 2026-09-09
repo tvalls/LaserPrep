@@ -45,6 +45,16 @@ const fullOptimizationScore = {
   efficiency: 1,
 };
 
+/** jsdom's Blob doesn't implement `.text()`; FileReader is the portable fallback. */
+function readBlobText(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsText(blob);
+  });
+}
+
 function conversionResult(overrides: Partial<typeof cleanValidation> = {}) {
   return {
     svg: "<svg></svg>",
@@ -537,5 +547,69 @@ describe("App", () => {
     expect(invoke).toHaveBeenCalledWith("save_svg_files", {
       files: [{ path: "/out/a.svg", svg: "<svg></svg>" }],
     });
+  });
+
+  it("shows the original image once fetched after import", async () => {
+    open.mockResolvedValue("/tmp/photo.png");
+    invoke.mockImplementation((command: string) => {
+      if (command === "current_source_image_data_url") {
+        return Promise.resolve("data:image/png;base64,AAAA");
+      }
+      return Promise.resolve(conversionResult());
+    });
+    const user = userEvent.setup();
+
+    render(<App />);
+    await user.click(screen.getByRole("button", { name: "Import Image" }));
+
+    expect(
+      await screen.findByRole("img", { name: "Original image" }),
+    ).toHaveAttribute("src", "data:image/png;base64,AAAA");
+  });
+
+  it("hides a tone's group in the preview when its checkbox is unchecked", async () => {
+    open.mockResolvedValue("/tmp/photo.png");
+    invoke.mockResolvedValue({
+      ...conversionResult(),
+      validation: { ...cleanValidation, toneCount: 2 },
+    });
+    const user = userEvent.setup();
+
+    render(<App />);
+    await user.click(screen.getByRole("button", { name: "Import Image" }));
+    await screen.findByRole("img", { name: "Generated SVG preview" });
+
+    await user.click(screen.getByLabelText("Tone 0"));
+
+    const objectUrlMock = URL.createObjectURL as unknown as {
+      mock: { calls: unknown[][] };
+    };
+    const lastBlob = objectUrlMock.mock.calls.at(-1)?.[0] as Blob;
+    const text = await readBlobText(lastBlob);
+    expect(text).toContain("#tone-0{display:none}");
+  });
+
+  it("colorizes tone groups with layer strokes instead of hiding them", async () => {
+    open.mockResolvedValue("/tmp/photo.png");
+    invoke.mockResolvedValue({
+      ...conversionResult(),
+      validation: { ...cleanValidation, toneCount: 2 },
+    });
+    const user = userEvent.setup();
+
+    render(<App />);
+    await user.click(screen.getByRole("button", { name: "Import Image" }));
+    await screen.findByRole("img", { name: "Generated SVG preview" });
+
+    await user.click(
+      screen.getByLabelText("LightBurn-style layer colors"),
+    );
+
+    const objectUrlMock = URL.createObjectURL as unknown as {
+      mock: { calls: unknown[][] };
+    };
+    const lastBlob = objectUrlMock.mock.calls.at(-1)?.[0] as Blob;
+    const text = await readBlobText(lastBlob);
+    expect(text).toContain("#tone-0 path{fill:none;stroke:");
   });
 });

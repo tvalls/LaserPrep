@@ -50,5 +50,10 @@
   "batch.status.pending": "Pending",
   "batch.status.converting": "Converting…",
   "batch.status.success": "Done",
-  "batch.status.error": "Error: {{message}}"
+  "batch.status.error": "Error: {{message}}",
+  "preview.heading": "Preview",
+  "preview.original.alt": "Original image",
+  "preview.generated.alt": "Generated SVG preview",
+  "preview.toneLabel": "Tone {{tone}}",
+  "preview.colorizeByLayer.label": "LightBurn-style layer colors"
 }

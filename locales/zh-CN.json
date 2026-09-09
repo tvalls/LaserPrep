@@ -50,5 +50,10 @@
   "batch.status.pending": "等待中",
   "batch.status.converting": "正在转换…",
   "batch.status.success": "已完成",
-  "batch.status.error": "错误：{{message}}"
+  "batch.status.error": "错误：{{message}}",
+  "preview.heading": "预览",
+  "preview.original.alt": "原始图片",
+  "preview.generated.alt": "生成的 SVG 预览",
+  "preview.toneLabel": "色调 {{tone}}",
+  "preview.colorizeByLayer.label": "LightBurn 风格图层配色"
 }
