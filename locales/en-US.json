@@ -9,6 +9,8 @@
   "app.status.projectSaved": "Project saved.",
   "app.status.openingProject": "Opening project…",
   "app.status.projectOpened": "Opened project ({{fileName}}).",
+  "app.status.reportSaved": "Report saved.",
+  "app.status.diagnosticsExported": "Diagnostic log exported.",
   "import.button": "Import Image",
   "export.button": "Export SVG",
   "undo.button": "Undo",
@@ -68,5 +70,14 @@
   "update.available.question": "Version {{version}} is available. Update now?",
   "update.updateNowButton": "Update Now",
   "update.laterButton": "Later",
-  "update.skipVersion.label": "Do not ask again for this version"
+  "update.skipVersion.label": "Do not ask again for this version",
+  "report.heading": "Report a Problem",
+  "report.imageNotice": "Your image is never attached automatically.",
+  "report.title.label": "Title",
+  "report.description.label": "Description",
+  "report.steps.label": "Steps to reproduce",
+  "report.environment": "LaserPrep {{version}} — {{os}}/{{arch}}",
+  "report.saveButton": "Save Report",
+  "report.openIssueButton": "Open GitHub Issue",
+  "report.exportLogButton": "Export Diagnostic Log"
 }
