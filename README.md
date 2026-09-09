@@ -19,14 +19,29 @@ heuristics: histograms, edge density (Sobel/Canny), color clustering
 uniform-background ratio, symmetry. See
 [`docs/adr/0002-no-ai-ml-classification.md`](docs/adr/0002-no-ai-ml-classification.md).
 
-> **Status:** early development (Phase 0 of the roadmap). Not yet
-> feature-complete; see [`docs/roadmap.md`](docs/roadmap.md).
+> **Status:** Phases 0-6 of the roadmap are done (import/preview/export,
+> advanced vectorization, heuristic classification and presets, batch
+> processing and `.lvp` projects, laser path-ordering optimization, and
+> the auto-update/crash-reporting/release pipeline). Phase 7 (CLI,
+> extensibility, additional formats) is in progress; see
+> [`docs/roadmap.md`](docs/roadmap.md) for exact scope and honest
+> limitations of each phase.
 
 ## Supported platforms
 
-Windows 10/11, x64, is the only officially supported platform right now.
-The architecture keeps macOS and Linux builds open as a future addition
-without requiring a redesign, but they are not built or tested yet.
+Windows 10/11, x64, is the only officially supported platform for the
+desktop app right now. The architecture keeps macOS and Linux desktop
+builds open as a future addition without requiring a redesign, but they
+are not built or tested yet. The `laser-vector` CLI (see below) has no
+platform-specific code and is pure Rust, so it builds anywhere Rust
+targets Windows/macOS/Linux — CI compiles and tests it on all three
+today even though the desktop app is Windows-only for now.
+
+## Supported input image formats
+
+PNG, JPEG, BMP, GIF, TIFF, and WebP. The format is detected from file
+content, not from the file extension. See
+[`docs/adr/0009-cli-and-additional-formats.md`](docs/adr/0009-cli-and-additional-formats.md).
 
 ## Installation
 
@@ -42,6 +57,36 @@ without requiring a redesign, but they are not built or tested yet.
 > so Windows SmartScreen will show an "unknown publisher" warning. Choose
 > "More info → Run anyway" if you trust the source you downloaded it
 > from.
+
+## Command-line interface
+
+`laser-vector` runs the same conversion core as the desktop app
+(`crates/pipeline`) without a GUI, for scripting and batch use outside
+LightBurn-facing interactive editing:
+
+```console
+$ laser-vector convert input.jpg --preset portrait --tones 5 --output output.svg
+converted input.jpg -> output.svg (5 tones)
+classified as GenericPhoto (confidence 0.42), suggested preset: photo
+validation: 7 paths (7 closed, 0 open, 0 degenerate), 214 nodes, LightBurn-compatible: true
+path ordering efficiency: 61.3% of optimal travel distance
+
+$ laser-vector presets
+preset      tones   min-area   legend  merge-adjacent
+photo           5         16    false           false
+portrait        6         12    false           false
+animal          5         20    false            true
+logo            2          4    false            true
+drawing         3          8    false           false
+landscape       8         24    false           false
+
+$ laser-vector convert --help
+```
+
+`--tones`, `--min-area`, `--legend`, `--merge-adjacent`, and
+`--order-paths` override the chosen `--preset`'s defaults when given.
+Build it with `cargo build -p laserprep-cli --release`; the binary is
+`target/release/laser-vector[.exe]`.
 
 ## Building from source
 
@@ -66,8 +111,8 @@ Settings persist across updates through explicit, tested migrations.
 
 ## Updates
 
-LaserPrep checks GitHub Releases for updates on startup (once the updater
-ships in Phase 6) and never installs silently — you always see a dialog
+LaserPrep checks GitHub Releases for updates on startup and never
+installs silently — you always see a dialog
 with the current/available version and release notes, and can update now,
 later, or skip that version. A manual "Check for Updates" action is also
 available. See

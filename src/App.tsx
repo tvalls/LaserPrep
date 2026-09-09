@@ -416,7 +416,12 @@ export default function App() {
   async function handleImport() {
     const path = await open({
       multiple: false,
-      filters: [{ name: "Images", extensions: ["png", "jpg", "jpeg"] }],
+      filters: [
+        {
+          name: "Images",
+          extensions: ["png", "jpg", "jpeg", "bmp", "gif", "tiff", "tif", "webp"],
+        },
+      ],
     });
     if (typeof path !== "string") {
       return;
@@ -569,7 +574,12 @@ export default function App() {
   async function handleBatchImport() {
     const paths = await open({
       multiple: true,
-      filters: [{ name: "Images", extensions: ["png", "jpg", "jpeg"] }],
+      filters: [
+        {
+          name: "Images",
+          extensions: ["png", "jpg", "jpeg", "bmp", "gif", "tiff", "tif", "webp"],
+        },
+      ],
     });
     const selected = Array.isArray(paths) ? paths : [];
     if (selected.length === 0) {

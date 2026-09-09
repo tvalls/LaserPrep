@@ -28,16 +28,12 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 tracing-appender = "0.2"
 
-laserprep-domain.workspace = true
 laserprep-analysis.workspace = true
 laserprep-imaging.workspace = true
-laserprep-quantize.workspace = true
-laserprep-vectorize.workspace = true
-laserprep-optimize.workspace = true
 laserprep-presets.workspace = true
-laserprep-svggen.workspace = true
 laserprep-settings.workspace = true
 laserprep-project.workspace = true
+laserprep-pipeline.workspace = true
 
 [dev-dependencies]
 image.workspace = true

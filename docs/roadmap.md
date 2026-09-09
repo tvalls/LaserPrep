@@ -40,8 +40,24 @@ application is left in a partially-fake state (see CLAUDE.md Section 13).
   engineering gap)*
 - **Phase 7** — CLI (`laser-vector convert input.jpg --preset portrait
   --tones 5 --output output.svg`), extensibility for new
-  pipelines/presets/algorithms, additional formats/platforms.
-  *(current)*
+  pipelines/presets/algorithms, additional formats/platforms. *(done —
+  `crates/cli` ships `laser-vector convert`/`laser-vector presets`,
+  depending only on the UI-agnostic `crates/pipeline` extracted from
+  `src-tauri` for this purpose; input formats expanded from PNG/JPEG to
+  also include BMP, GIF, TIFF, and WebP (`docs/adr/0009-cli-and-additional-formats.md`);
+  extensibility is documented in `docs/architecture.md`'s
+  "Extensibility" section against the trait/data-table seams that
+  already existed (`Vectorizer`, `ALL_PRESETS`, `ContentCategory`)
+  rather than a new plugin system nothing in this codebase needs yet.
+  "Additional platforms" is honestly scoped like Phase 6's code-signing
+  item: the CLI is pure Rust and CI now builds/tests it on Windows,
+  Linux, and macOS runners; the desktop app itself stays Windows-only
+  by design for now — see README's "Supported platforms" — since
+  packaging src-tauri for macOS/Linux (notarization, WebKitGTK
+  packaging, separate signing infrastructure) is a real, separate body
+  of work with no user request driving it yet, not an engineering gap
+  in the architecture)*
 
-See the project's GitHub Issues/Projects for granular, per-phase task
-tracking as phases begin.
+All seven roadmap phases are now done. See the project's GitHub
+Issues/Projects for any further, non-phase-tracked work (bug reports,
+small enhancements) going forward.

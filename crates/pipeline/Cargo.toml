@@ -1,0 +1,24 @@
+[package]
+name = "laserprep-pipeline"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Orchestrates the import-through-SVG conversion pipeline, independent of any UI (CLAUDE.md Section 5)."
+
+[dependencies]
+laserprep-domain.workspace = true
+laserprep-analysis.workspace = true
+laserprep-imaging.workspace = true
+laserprep-quantize.workspace = true
+laserprep-vectorize.workspace = true
+laserprep-optimize.workspace = true
+laserprep-svggen.workspace = true
+laserprep-presets.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+image.workspace = true
+tempfile = "3"

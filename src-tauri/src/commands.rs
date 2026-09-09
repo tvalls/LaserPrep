@@ -1,5 +1,5 @@
 //! Tauri IPC commands exposed to the frontend. Each command is a thin
-//! wrapper around [`crate::pipeline`] or `laserprep_project`, mapping
+//! wrapper around [`laserprep_pipeline`] or `laserprep_project`, mapping
 //! their error types to a `String` for IPC (Tauri command errors must
 //! be `Serialize`).
 //!
@@ -12,7 +12,7 @@
 //! and forth over IPC just to hold onto them.
 //!
 //! Alongside it, [`DecodedSourceState`] caches the *decoded and
-//! classified* form of that same image (`pipeline::DecodedSource`):
+//! classified* form of that same image (`laserprep_pipeline::DecodedSource`):
 //! decoding and heuristic classification depend only on the source
 //! bytes, never on conversion parameters, so re-running them on every
 //! [`convert_current_source`] call (as the UI's Reconvert action and
@@ -21,8 +21,8 @@
 //! Kept in sync with [`SourceImageState`] at the same two entry
 //! points (import, open project) so the two are never out of step.
 
-use crate::pipeline::{self, ConversionResult, DecodedSource};
 use laserprep_analysis::Classification;
+use laserprep_pipeline::{self as pipeline, ConversionResult, DecodedSource};
 use laserprep_presets::PresetName;
 use laserprep_project::{ConversionParams, ProjectFile, ProjectResult, ProjectStore, SourceImage};
 use laserprep_settings::{Settings, SettingsStore};

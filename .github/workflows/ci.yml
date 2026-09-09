@@ -67,3 +67,29 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: npx tauri build
+
+  cli-cross-platform:
+    name: laser-vector CLI (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+
+      # The desktop app (src-tauri) is Windows-only for now (see
+      # README's "Supported platforms"); only build/test the
+      # platform-independent conversion core and CLI here.
+      - name: Run laserprep-cli tests
+        run: cargo test -p laserprep-cli -p laserprep-pipeline
+
+      - name: Build laser-vector (release)
+        run: cargo build -p laserprep-cli --release
