@@ -55,5 +55,18 @@
   "preview.original.alt": "Imagem original",
   "preview.generated.alt": "Pré-visualização do SVG gerado",
   "preview.toneLabel": "Tom {{tone}}",
-  "preview.colorizeByLayer.label": "Cores de camada estilo LightBurn"
+  "preview.colorizeByLayer.label": "Cores de camada estilo LightBurn",
+  "update.heading": "Atualizações",
+  "update.currentVersion": "Versão {{version}}",
+  "update.checkButton": "Verificar atualizações",
+  "update.checking": "Verificando atualizações…",
+  "update.upToDate": "Você está com a versão mais recente.",
+  "update.checkFailed": "Não foi possível verificar atualizações.",
+  "update.downloading": "Baixando atualização…",
+  "update.checkOnStartup.label": "Verificar atualizações ao iniciar",
+  "update.available.title": "Atualização disponível",
+  "update.available.question": "A versão {{version}} está disponível. Atualizar agora?",
+  "update.updateNowButton": "Atualizar agora",
+  "update.laterButton": "Mais tarde",
+  "update.skipVersion.label": "Não perguntar novamente para esta versão"
 }

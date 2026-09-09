@@ -1,5 +1,8 @@
+import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
+import { relaunch } from "@tauri-apps/plugin-process";
+import { check as checkForUpdate, type Update } from "@tauri-apps/plugin-updater";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -84,6 +87,20 @@ type ProjectParams = {
   mergeAdjacent: boolean;
   orderPaths: boolean;
 };
+
+/**
+ * Mirrors `laserprep_settings::Settings`. The Rust side also flattens
+ * unrecognized top-level fields onto this object (forward-compat with
+ * future settings versions) — this type only names the fields the UI
+ * actually reads/writes; other properties survive round-trips because
+ * every write spreads the object we last received rather than
+ * reconstructing it field by field.
+ */
+type Settings = {
+  schemaVersion: number;
+  ui: { language: string; theme: "light" | "dark" | "system" };
+  updates: { checkOnStartup: boolean; skippedVersions: string[] };
+} & Record<string, unknown>;
 
 type OpenedProject = {
   sourceFileName: string | null;
@@ -230,6 +247,13 @@ export default function App() {
     past: ParamsSnapshot[];
     future: ParamsSnapshot[];
   }>({ past: [], future: [] });
+  const [currentVersion, setCurrentVersion] = useState<string | null>(null);
+  const [settings, setSettings] = useState<Settings | null>(null);
+  const [availableUpdate, setAvailableUpdate] = useState<Update | null>(null);
+  const [skipThisVersionChecked, setSkipThisVersionChecked] = useState(false);
+  const [updateCheckStatus, setUpdateCheckStatus] = useState<
+    "idle" | "checking" | "upToDate" | "downloading" | "error"
+  >("idle");
 
   function currentParamsSnapshot(): ParamsSnapshot {
     return {
@@ -653,6 +677,118 @@ export default function App() {
     commitParamsChange({ ...currentParamsSnapshot(), orderPaths: checked, presetName: null });
   }
 
+  /**
+   * CLAUDE.md Section 22: checks GitHub Releases for a newer version.
+   * Never surfaces an error to the main status line — a failed check
+   * (offline, rate-limited, GitHub unreachable) must not block or
+   * interrupt using the app (auto-ci Standard 6).
+   */
+  async function runUpdateCheck(skippedVersions: string[]) {
+    setUpdateCheckStatus("checking");
+    try {
+      const update = await checkForUpdate();
+      if (update && !skippedVersions.includes(update.version)) {
+        setAvailableUpdate(update);
+        setSkipThisVersionChecked(false);
+        setUpdateCheckStatus("idle");
+      } else {
+        setAvailableUpdate(null);
+        setUpdateCheckStatus("upToDate");
+      }
+    } catch {
+      setUpdateCheckStatus("error");
+    }
+  }
+
+  /**
+   * A manually requested check always shows an available update, even
+   * one the user previously skipped — skipping only silences the
+   * *automatic* startup check (auto-ci Standard 6, rule 10: "A skipped
+   * version must not suppress prompts for any later release", and by
+   * the same logic shouldn't suppress a check the user explicitly
+   * asked for right now either).
+   */
+  async function handleCheckForUpdates() {
+    await runUpdateCheck([]);
+  }
+
+  async function saveSettings(next: Settings) {
+    setSettings(next);
+    await invoke("save_settings", { settings: next });
+  }
+
+  async function handleCheckOnStartupChange(checked: boolean) {
+    if (!settings) {
+      return;
+    }
+    try {
+      await saveSettings({
+        ...settings,
+        updates: { ...settings.updates, checkOnStartup: checked },
+      });
+    } catch (error) {
+      setStatus({ kind: "error", message: String(error) });
+    }
+  }
+
+  async function handleUpdateNow() {
+    if (!availableUpdate) {
+      return;
+    }
+    setUpdateCheckStatus("downloading");
+    try {
+      await availableUpdate.downloadAndInstall();
+      // Windows exits the app from inside downloadAndInstall() once the
+      // installer launches; this only runs on platforms where it doesn't.
+      await relaunch();
+    } catch {
+      setUpdateCheckStatus("error");
+    }
+  }
+
+  async function handleLaterOrSkip() {
+    if (skipThisVersionChecked && availableUpdate && settings) {
+      try {
+        await saveSettings({
+          ...settings,
+          updates: {
+            ...settings.updates,
+            skippedVersions: [
+              ...settings.updates.skippedVersions,
+              availableUpdate.version,
+            ],
+          },
+        });
+      } catch (error) {
+        setStatus({ kind: "error", message: String(error) });
+      }
+    }
+    setAvailableUpdate(null);
+    setSkipThisVersionChecked(false);
+  }
+
+  useEffect(() => {
+    void getVersion().then(setCurrentVersion);
+
+    void (async () => {
+      try {
+        const loaded = await invoke<Settings>("get_settings");
+        if (!loaded || typeof loaded !== "object" || !("updates" in loaded)) {
+          return;
+        }
+        setSettings(loaded);
+        if (loaded.updates.checkOnStartup) {
+          await runUpdateCheck(loaded.updates.skippedVersions);
+        }
+      } catch {
+        // Settings unavailable — startup must never block on this
+        // (auto-ci Standard 6). The manual "Check for Updates" button
+        // still works once the user opens it.
+      }
+    })();
+    // Runs once, on mount, like the startup check it performs.
+  }, []);
+
   const batchCompletedCount = batchItems.filter(
     (item) => item.status === "success" || item.status === "error",
   ).length;
@@ -925,6 +1061,83 @@ export default function App() {
           </option>
         ))}
       </select>
+
+      <section aria-label={t("update.heading")}>
+        <h2>{t("update.heading")}</h2>
+        {currentVersion && (
+          <p>{t("update.currentVersion", { version: currentVersion })}</p>
+        )}
+        <button
+          type="button"
+          onClick={() => void handleCheckForUpdates()}
+          disabled={
+            updateCheckStatus === "checking" ||
+            updateCheckStatus === "downloading"
+          }
+        >
+          {t("update.checkButton")}
+        </button>
+
+        {updateCheckStatus === "checking" && (
+          <p role="status">{t("update.checking")}</p>
+        )}
+        {updateCheckStatus === "upToDate" && (
+          <p role="status">{t("update.upToDate")}</p>
+        )}
+        {updateCheckStatus === "error" && (
+          <p role="status">{t("update.checkFailed")}</p>
+        )}
+        {updateCheckStatus === "downloading" && (
+          <p role="status">{t("update.downloading")}</p>
+        )}
+
+        {settings && (
+          <>
+            <label htmlFor="check-on-startup">
+              {t("update.checkOnStartup.label")}
+            </label>
+            <input
+              id="check-on-startup"
+              type="checkbox"
+              checked={settings.updates.checkOnStartup}
+              onChange={(event) =>
+                void handleCheckOnStartupChange(event.target.checked)
+              }
+            />
+          </>
+        )}
+
+        {availableUpdate && (
+          <div role="alertdialog" aria-label={t("update.available.title")}>
+            <h3>{t("update.available.title")}</h3>
+            <p>
+              {t("update.available.question", {
+                version: availableUpdate.version,
+              })}
+            </p>
+            {availableUpdate.body && <p>{availableUpdate.body}</p>}
+
+            <button type="button" onClick={() => void handleUpdateNow()}>
+              {t("update.updateNowButton")}
+            </button>
+            <button type="button" onClick={() => void handleLaterOrSkip()}>
+              {t("update.laterButton")}
+            </button>
+
+            <label htmlFor="skip-this-version">
+              {t("update.skipVersion.label")}
+            </label>
+            <input
+              id="skip-this-version"
+              type="checkbox"
+              checked={skipThisVersionChecked}
+              onChange={(event) =>
+                setSkipThisVersionChecked(event.target.checked)
+              }
+            />
+          </div>
+        )}
+      </section>
     </main>
   );
 }

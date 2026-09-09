@@ -25,6 +25,7 @@ use crate::pipeline::{self, ConversionResult, DecodedSource};
 use laserprep_analysis::Classification;
 use laserprep_presets::PresetName;
 use laserprep_project::{ConversionParams, ProjectFile, ProjectResult, ProjectStore, SourceImage};
+use laserprep_settings::{Settings, SettingsStore};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use tauri::State;
@@ -37,6 +38,12 @@ pub type SourceImageState = Mutex<Option<SourceImage>>;
 /// currently holds. `Arc` so reading it for a conversion is a cheap
 /// reference-count bump rather than a clone of the full pixel buffer.
 pub type DecodedSourceState = Mutex<Option<Arc<DecodedSource>>>;
+
+/// The application settings currently loaded (CLAUDE.md Section 22:
+/// update-check preferences; auto-ci Standard 7 more generally),
+/// mutable so [`save_settings`] can update it in place after
+/// persisting to disk.
+pub type SettingsState = Mutex<Settings>;
 
 fn lock_source<'a>(
     state: &'a State<'_, SourceImageState>,
@@ -52,6 +59,34 @@ fn lock_decoded<'a>(
     state
         .lock()
         .map_err(|_| "internal state lock was poisoned".to_string())
+}
+
+fn lock_settings<'a>(
+    state: &'a State<'_, SettingsState>,
+) -> Result<std::sync::MutexGuard<'a, Settings>, String> {
+    state
+        .lock()
+        .map_err(|_| "internal state lock was poisoned".to_string())
+}
+
+/// Returns the currently loaded settings.
+#[tauri::command]
+pub fn get_settings(settings: State<'_, SettingsState>) -> Result<Settings, String> {
+    Ok(lock_settings(&settings)?.clone())
+}
+
+/// Persists `settings` to disk and updates the in-memory copy
+/// [`get_settings`] (and anything else reading [`SettingsState`])
+/// sees from then on.
+#[tauri::command]
+pub fn save_settings(
+    settings: Settings,
+    store: State<'_, SettingsStore>,
+    state: State<'_, SettingsState>,
+) -> Result<(), String> {
+    store.save(&settings).map_err(|err| err.to_string())?;
+    *lock_settings(&state)? = settings;
+    Ok(())
 }
 
 #[tauri::command]

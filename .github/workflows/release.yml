@@ -50,6 +50,9 @@ jobs:
         run: npm ci
 
       - name: Build and bundle
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: npx tauri build
 
       - name: Generate SHA-256 checksums
@@ -63,11 +66,47 @@ jobs:
               "$hash  $($_.Name)" | Out-File -Append -Encoding utf8 $checksumFile
             }
 
+      - name: Generate updater manifest (latest.json)
+        # CLAUDE.md Section 22: "verificação de integridade/assinatura
+        # quando suportado" — tauri-plugin-updater's endpoint format.
+        # Prefers the NSIS updater artifact over MSI's when both exist
+        # (createUpdaterArtifacts produces one per bundle target);
+        # NSIS supports the plugin's silent update install path.
+        shell: pwsh
+        run: |
+          $bundleDir = "src-tauri/target/release/bundle"
+          $sigFile = Get-ChildItem -Path $bundleDir -Recurse -Filter "*.nsis.zip.sig" | Select-Object -First 1
+          if (-not $sigFile) {
+            $sigFile = Get-ChildItem -Path $bundleDir -Recurse -Filter "*.msi.zip.sig" | Select-Object -First 1
+          }
+          if (-not $sigFile) {
+            throw "No updater signature (.sig) file found under $bundleDir — is createUpdaterArtifacts enabled and the signing key configured?"
+          }
+
+          $archiveName = $sigFile.Name -replace '\.sig$', ''
+          $signature = Get-Content -Path $sigFile.FullName -Raw
+          $tag = "${{ needs.release-please.outputs.tag_name }}"
+          $version = $tag -replace '^v', ''
+          $pubDate = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+
+          $manifest = @{
+            version   = $version
+            notes     = "See the GitHub Release notes for $tag."
+            pub_date  = $pubDate
+            platforms = @{
+              "windows-x86_64" = @{
+                signature = $signature.Trim()
+                url       = "https://github.com/${{ github.repository }}/releases/download/$tag/$archiveName"
+              }
+            }
+          }
+          $manifest | ConvertTo-Json -Depth 5 | Out-File -Encoding utf8 -FilePath "latest.json"
+
       - name: Upload release assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: pwsh
         run: |
           $tag = "${{ needs.release-please.outputs.tag_name }}"
-          $assets = Get-ChildItem -Path "src-tauri/target/release/bundle" -Recurse -Include *.msi, *.exe
-          gh release upload $tag $assets.FullName SHA256SUMS.txt
+          $assets = Get-ChildItem -Path "src-tauri/target/release/bundle" -Recurse -Include *.msi, *.exe, *.zip, *.sig
+          gh release upload $tag $assets.FullName SHA256SUMS.txt latest.json

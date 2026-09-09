@@ -7,9 +7,15 @@ import i18n, { i18nReady } from "./i18n";
 
 const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
 const { open, save } = vi.hoisted(() => ({ open: vi.fn(), save: vi.fn() }));
+const { getVersion } = vi.hoisted(() => ({ getVersion: vi.fn() }));
+const { checkForUpdate } = vi.hoisted(() => ({ checkForUpdate: vi.fn() }));
+const { relaunch } = vi.hoisted(() => ({ relaunch: vi.fn() }));
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open, save }));
+vi.mock("@tauri-apps/api/app", () => ({ getVersion }));
+vi.mock("@tauri-apps/plugin-updater", () => ({ check: checkForUpdate }));
+vi.mock("@tauri-apps/plugin-process", () => ({ relaunch }));
 
 beforeAll(async () => {
   await i18nReady;
@@ -19,6 +25,9 @@ beforeEach(async () => {
   invoke.mockReset();
   open.mockReset();
   save.mockReset();
+  getVersion.mockReset().mockResolvedValue("0.1.0");
+  checkForUpdate.mockReset().mockResolvedValue(null);
+  relaunch.mockReset().mockResolvedValue(undefined);
   URL.createObjectURL = vi.fn(() => "blob:mock-preview");
   URL.revokeObjectURL = vi.fn();
   await i18n.changeLanguage("en-US");
@@ -44,6 +53,31 @@ const fullOptimizationScore = {
   optimalTravelDistance: 10,
   efficiency: 1,
 };
+
+const defaultSettings = {
+  schemaVersion: 1,
+  ui: { language: "en-US", theme: "system" as const },
+  updates: { checkOnStartup: false, skippedVersions: [] as string[] },
+};
+
+function mockUpdate(overrides: Partial<{ version: string; body: string }> = {}) {
+  return {
+    version: "0.2.0",
+    body: "Release notes",
+    downloadAndInstall: vi.fn().mockResolvedValue(undefined),
+    ...overrides,
+  };
+}
+
+/** Routes `get_settings` to `settings`, everything else to `conversionResult()`. */
+function mockInvokeWithSettings(settings: typeof defaultSettings) {
+  invoke.mockImplementation((command: string) => {
+    if (command === "get_settings") {
+      return Promise.resolve(settings);
+    }
+    return Promise.resolve(conversionResult());
+  });
+}
 
 /** jsdom's Blob doesn't implement `.text()`; FileReader is the portable fallback. */
 function readBlobText(blob: Blob): Promise<string> {
@@ -247,7 +281,10 @@ describe("App", () => {
     render(<App />);
     await user.click(screen.getByRole("button", { name: "Import Image" }));
 
-    expect(invoke).not.toHaveBeenCalled();
+    expect(invoke).not.toHaveBeenCalledWith(
+      "convert_image_file",
+      expect.anything(),
+    );
     expect(screen.getByRole("status")).toHaveTextContent(
       "Import an image to generate a laser-ready SVG.",
     );
@@ -271,14 +308,16 @@ describe("App", () => {
     });
   });
 
-  it("keeps the export button disabled before anything is imported", () => {
+  it("keeps the export button disabled before anything is imported", async () => {
     render(<App />);
+    await screen.findByRole("status");
 
     expect(screen.getByRole("button", { name: "Export SVG" })).toBeDisabled();
   });
 
-  it("keeps reconvert and save-project disabled before anything is imported", () => {
+  it("keeps reconvert and save-project disabled before anything is imported", async () => {
     render(<App />);
+    await screen.findByRole("status");
 
     expect(screen.getByRole("button", { name: "Reconvert" })).toBeDisabled();
     expect(
@@ -286,8 +325,9 @@ describe("App", () => {
     ).toBeDisabled();
   });
 
-  it("keeps undo and redo disabled until a parameter changes", () => {
+  it("keeps undo and redo disabled until a parameter changes", async () => {
     render(<App />);
+    await screen.findByRole("status");
 
     expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Redo" })).toBeDisabled();
@@ -611,5 +651,172 @@ describe("App", () => {
     const lastBlob = objectUrlMock.mock.calls.at(-1)?.[0] as Blob;
     const text = await readBlobText(lastBlob);
     expect(text).toContain("#tone-0 path{fill:none;stroke:");
+  });
+
+  it("shows the current app version", async () => {
+    mockInvokeWithSettings(defaultSettings);
+    render(<App />);
+
+    expect(await screen.findByText("Version 0.1.0")).toBeInTheDocument();
+  });
+
+  it("shows up-to-date status after a manual check finds no update", async () => {
+    mockInvokeWithSettings(defaultSettings);
+    checkForUpdate.mockResolvedValue(null);
+    const user = userEvent.setup();
+
+    render(<App />);
+    await user.click(
+      screen.getByRole("button", { name: "Check for Updates" }),
+    );
+
+    expect(await screen.findByText("You're up to date.")).toBeInTheDocument();
+  });
+
+  it("shows an update dialog when a newer version is available", async () => {
+    mockInvokeWithSettings(defaultSettings);
+    checkForUpdate.mockResolvedValue(mockUpdate());
+    const user = userEvent.setup();
+
+    render(<App />);
+    await user.click(
+      screen.getByRole("button", { name: "Check for Updates" }),
+    );
+
+    expect(
+      await screen.findByRole("alertdialog", { name: "Update available" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Version 0.2.0 is available. Update now?"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Release notes")).toBeInTheDocument();
+  });
+
+  it("downloads and installs the update, then relaunches", async () => {
+    mockInvokeWithSettings(defaultSettings);
+    const update = mockUpdate();
+    checkForUpdate.mockResolvedValue(update);
+    const user = userEvent.setup();
+
+    render(<App />);
+    await user.click(
+      screen.getByRole("button", { name: "Check for Updates" }),
+    );
+    await screen.findByRole("alertdialog", { name: "Update available" });
+
+    await user.click(screen.getByRole("button", { name: "Update Now" }));
+
+    expect(update.downloadAndInstall).toHaveBeenCalled();
+    expect(relaunch).toHaveBeenCalled();
+  });
+
+  it("persists a skipped version when Later is clicked with the checkbox checked", async () => {
+    mockInvokeWithSettings(defaultSettings);
+    checkForUpdate.mockResolvedValue(mockUpdate());
+    const user = userEvent.setup();
+
+    render(<App />);
+    await user.click(
+      screen.getByRole("button", { name: "Check for Updates" }),
+    );
+    await screen.findByRole("alertdialog", { name: "Update available" });
+
+    await user.click(
+      screen.getByLabelText("Do not ask again for this version"),
+    );
+    await user.click(screen.getByRole("button", { name: "Later" }));
+
+    expect(invoke).toHaveBeenCalledWith("save_settings", {
+      settings: {
+        ...defaultSettings,
+        updates: { checkOnStartup: false, skippedVersions: ["0.2.0"] },
+      },
+    });
+    expect(
+      screen.queryByRole("alertdialog", { name: "Update available" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not persist anything when Later is clicked without the checkbox", async () => {
+    mockInvokeWithSettings(defaultSettings);
+    checkForUpdate.mockResolvedValue(mockUpdate());
+    const user = userEvent.setup();
+
+    render(<App />);
+    await user.click(
+      screen.getByRole("button", { name: "Check for Updates" }),
+    );
+    await screen.findByRole("alertdialog", { name: "Update available" });
+
+    await user.click(screen.getByRole("button", { name: "Later" }));
+
+    expect(invoke).not.toHaveBeenCalledWith(
+      "save_settings",
+      expect.anything(),
+    );
+  });
+
+  it("persists the check-on-startup preference when toggled", async () => {
+    mockInvokeWithSettings(defaultSettings);
+    const user = userEvent.setup();
+
+    render(<App />);
+    await user.click(
+      await screen.findByLabelText("Check for updates on startup"),
+    );
+
+    expect(invoke).toHaveBeenCalledWith("save_settings", {
+      settings: {
+        ...defaultSettings,
+        updates: { checkOnStartup: true, skippedVersions: [] },
+      },
+    });
+  });
+
+  it("checks for updates automatically on startup when enabled", async () => {
+    mockInvokeWithSettings({
+      ...defaultSettings,
+      updates: { checkOnStartup: true, skippedVersions: [] },
+    });
+    checkForUpdate.mockResolvedValue(mockUpdate());
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole("alertdialog", { name: "Update available" }),
+    ).toBeInTheDocument();
+  });
+
+  it("does not show a version the user already chose to skip on startup", async () => {
+    mockInvokeWithSettings({
+      ...defaultSettings,
+      updates: { checkOnStartup: true, skippedVersions: ["0.2.0"] },
+    });
+    checkForUpdate.mockResolvedValue(mockUpdate());
+
+    render(<App />);
+
+    expect(await screen.findByText("You're up to date.")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("alertdialog", { name: "Update available" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows a previously skipped version again on a manual check", async () => {
+    mockInvokeWithSettings({
+      ...defaultSettings,
+      updates: { checkOnStartup: false, skippedVersions: ["0.2.0"] },
+    });
+    checkForUpdate.mockResolvedValue(mockUpdate());
+    const user = userEvent.setup();
+
+    render(<App />);
+    await user.click(
+      screen.getByRole("button", { name: "Check for Updates" }),
+    );
+
+    expect(
+      await screen.findByRole("alertdialog", { name: "Update available" }),
+    ).toBeInTheDocument();
   });
 });

@@ -55,5 +55,18 @@
   "preview.original.alt": "Original image",
   "preview.generated.alt": "Generated SVG preview",
   "preview.toneLabel": "Tone {{tone}}",
-  "preview.colorizeByLayer.label": "LightBurn-style layer colors"
+  "preview.colorizeByLayer.label": "LightBurn-style layer colors",
+  "update.heading": "Updates",
+  "update.currentVersion": "Version {{version}}",
+  "update.checkButton": "Check for Updates",
+  "update.checking": "Checking for updates…",
+  "update.upToDate": "You're up to date.",
+  "update.checkFailed": "Couldn't check for updates.",
+  "update.downloading": "Downloading update…",
+  "update.checkOnStartup.label": "Check for updates on startup",
+  "update.available.title": "Update available",
+  "update.available.question": "Version {{version}} is available. Update now?",
+  "update.updateNowButton": "Update Now",
+  "update.laterButton": "Later",
+  "update.skipVersion.label": "Do not ask again for this version"
 }
