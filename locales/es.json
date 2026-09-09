@@ -9,6 +9,8 @@
   "app.status.projectSaved": "Proyecto guardado.",
   "app.status.openingProject": "Abriendo proyecto…",
   "app.status.projectOpened": "Proyecto abierto ({{fileName}}).",
+  "app.status.reportSaved": "Informe guardado.",
+  "app.status.diagnosticsExported": "Registro de diagnóstico exportado.",
   "import.button": "Importar imagen",
   "export.button": "Exportar SVG",
   "undo.button": "Deshacer",
@@ -68,5 +70,14 @@
   "update.available.question": "La versión {{version}} está disponible. ¿Actualizar ahora?",
   "update.updateNowButton": "Actualizar ahora",
   "update.laterButton": "Más tarde",
-  "update.skipVersion.label": "No preguntar de nuevo para esta versión"
+  "update.skipVersion.label": "No preguntar de nuevo para esta versión",
+  "report.heading": "Informar un problema",
+  "report.imageNotice": "Tu imagen nunca se adjunta automáticamente.",
+  "report.title.label": "Título",
+  "report.description.label": "Descripción",
+  "report.steps.label": "Pasos para reproducir",
+  "report.environment": "LaserPrep {{version}} — {{os}}/{{arch}}",
+  "report.saveButton": "Guardar informe",
+  "report.openIssueButton": "Abrir incidencia en GitHub",
+  "report.exportLogButton": "Exportar registro de diagnóstico"
 }

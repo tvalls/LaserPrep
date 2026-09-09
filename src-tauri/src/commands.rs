@@ -148,6 +148,14 @@ pub fn save_svg_file(path: String, svg: String) -> Result<(), String> {
     pipeline::save_svg_to_file(Path::new(&path), &svg).map_err(|err| err.to_string())
 }
 
+/// Writes arbitrary plain text to `path` — used for saving a bug
+/// report (CLAUDE.md Section 20) as a local file the user can attach
+/// or paste wherever they choose.
+#[tauri::command]
+pub fn write_text_file(path: String, contents: String) -> Result<(), String> {
+    std::fs::write(&path, contents).map_err(|err| err.to_string())
+}
+
 /// One SVG document to write to `path`, as produced by a batch
 /// conversion (CLAUDE.md Section 12).
 #[derive(Debug, serde::Deserialize)]
@@ -284,4 +292,63 @@ pub fn current_source_image_data_url(
     let mime = laserprep_imaging::guess_mime_type(&bytes).unwrap_or("application/octet-stream");
 
     Ok(format!("data:{mime};base64,{}", source_image.data_base64))
+}
+
+/// Version/platform context a bug report needs (CLAUDE.md Section 20:
+/// "Ajuda → Reportar problema" asks for título, descrição, passos,
+/// logs, versão, SO, arquitetura) — the frontend pre-fills its report
+/// form with this rather than asking the user to type it in by hand.
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiagnosticInfo {
+    pub app_version: String,
+    pub os: String,
+    pub arch: String,
+}
+
+#[tauri::command]
+pub fn get_diagnostic_info() -> DiagnosticInfo {
+    DiagnosticInfo {
+        app_version: env!("CARGO_PKG_VERSION").to_string(),
+        os: std::env::consts::OS.to_string(),
+        arch: std::env::consts::ARCH.to_string(),
+    }
+}
+
+/// Writes a plain-text diagnostic bundle (version/OS/architecture plus
+/// every log file `lib.rs`'s daily-rolling appender has written) to
+/// `path`. Deliberately never includes the user's image — there is
+/// nothing here that could (CLAUDE.md Section 20: "diagnóstico
+/// exportável nunca inclui a imagem original por padrão" — trivially
+/// true today since this never touches image bytes at all, not just
+/// filtered out).
+#[tauri::command]
+pub fn export_diagnostics(path: String, app: tauri::AppHandle) -> Result<(), String> {
+    use tauri::Manager as _;
+
+    let info = get_diagnostic_info();
+    let mut output = format!(
+        "LaserPrep diagnostic export\nVersion: {}\nOS: {}\nArchitecture: {}\n\n",
+        info.app_version, info.os, info.arch
+    );
+
+    let log_dir = app.path().app_log_dir().map_err(|err| err.to_string())?;
+    let mut log_files: Vec<_> = std::fs::read_dir(&log_dir)
+        .map_err(|err| err.to_string())?
+        .filter_map(|entry| entry.ok())
+        .map(|entry| entry.path())
+        .filter(|path| path.is_file())
+        .collect();
+    log_files.sort();
+
+    for log_file in log_files {
+        output.push_str(&format!("=== {} ===\n", log_file.display()));
+        match std::fs::read_to_string(&log_file) {
+            Ok(contents) => output.push_str(&contents),
+            Err(err) => output.push_str(&format!("(failed to read: {err})\n")),
+        }
+        output.push('\n');
+    }
+
+    std::fs::write(&path, output).map_err(|err| err.to_string())
 }

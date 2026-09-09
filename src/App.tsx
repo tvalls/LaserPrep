@@ -1,6 +1,7 @@
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check as checkForUpdate, type Update } from "@tauri-apps/plugin-updater";
 import { useEffect, useState } from "react";
@@ -22,6 +23,8 @@ type Status =
   | { kind: "projectSaved" }
   | { kind: "openingProject" }
   | { kind: "projectOpened" }
+  | { kind: "reportSaved" }
+  | { kind: "diagnosticsExported" }
   | { kind: "error"; message: string };
 
 type ValidationReport = {
@@ -101,6 +104,12 @@ type Settings = {
   ui: { language: string; theme: "light" | "dark" | "system" };
   updates: { checkOnStartup: boolean; skippedVersions: string[] };
 } & Record<string, unknown>;
+
+type DiagnosticInfo = {
+  appVersion: string;
+  os: string;
+  arch: string;
+};
 
 type OpenedProject = {
   sourceFileName: string | null;
@@ -254,6 +263,12 @@ export default function App() {
   const [updateCheckStatus, setUpdateCheckStatus] = useState<
     "idle" | "checking" | "upToDate" | "downloading" | "error"
   >("idle");
+  const [diagnosticInfo, setDiagnosticInfo] = useState<DiagnosticInfo | null>(
+    null,
+  );
+  const [reportTitle, setReportTitle] = useState("");
+  const [reportDescription, setReportDescription] = useState("");
+  const [reportSteps, setReportSteps] = useState("");
 
   function currentParamsSnapshot(): ParamsSnapshot {
     return {
@@ -767,8 +782,78 @@ export default function App() {
     setSkipThisVersionChecked(false);
   }
 
+  /** The report's free-text fields plus environment info, shared by "Save Report" and "Open GitHub Issue". */
+  function buildReportBody(): string {
+    const environment = diagnosticInfo
+      ? `LaserPrep ${diagnosticInfo.appVersion} — ${diagnosticInfo.os}/${diagnosticInfo.arch}`
+      : "";
+    return [
+      "Description:",
+      reportDescription,
+      "",
+      "Steps to reproduce:",
+      reportSteps,
+      "",
+      "Environment:",
+      environment,
+    ].join("\n");
+  }
+
+  async function handleSaveReport() {
+    const path = await save({ filters: [{ name: "Text", extensions: ["txt"] }] });
+    if (!path) {
+      return;
+    }
+    try {
+      await invoke("write_text_file", {
+        path,
+        contents: `Title: ${reportTitle}\n\n${buildReportBody()}`,
+      });
+      setStatus({ kind: "reportSaved" });
+    } catch (error) {
+      setStatus({ kind: "error", message: String(error) });
+    }
+  }
+
+  /**
+   * Opens a pre-filled GitHub issue in the default browser — an
+   * explicit, user-initiated action, not automatic telemetry (CLAUDE.md
+   * Section 21: no data leaves the machine by default). The user's
+   * image is never included here; there's nothing in this function
+   * that could even reach for it.
+   */
+  async function handleOpenGithubIssue() {
+    const url = new URL("https://github.com/tvalls/LaserPrep/issues/new");
+    url.searchParams.set("title", reportTitle);
+    url.searchParams.set("body", buildReportBody());
+    try {
+      await openUrl(url.toString());
+    } catch (error) {
+      setStatus({ kind: "error", message: String(error) });
+    }
+  }
+
+  async function handleExportDiagnosticLog() {
+    const path = await save({ filters: [{ name: "Text", extensions: ["txt"] }] });
+    if (!path) {
+      return;
+    }
+    try {
+      await invoke("export_diagnostics", { path });
+      setStatus({ kind: "diagnosticsExported" });
+    } catch (error) {
+      setStatus({ kind: "error", message: String(error) });
+    }
+  }
+
   useEffect(() => {
     void getVersion().then(setCurrentVersion);
+    void invoke<DiagnosticInfo>("get_diagnostic_info")
+      .then(setDiagnosticInfo)
+      .catch(() => {
+        // The report form still works without this — it just won't
+        // pre-fill the environment line.
+      });
 
     void (async () => {
       try {
@@ -811,9 +896,13 @@ export default function App() {
                 ? t("app.status.projectOpened", {
                     fileName: sourceFileName ?? "",
                   })
-                : status.kind === "error"
-                  ? t("app.status.error", { message: status.message })
-                  : t("app.status.idle");
+                : status.kind === "reportSaved"
+                  ? t("app.status.reportSaved")
+                  : status.kind === "diagnosticsExported"
+                    ? t("app.status.diagnosticsExported")
+                    : status.kind === "error"
+                      ? t("app.status.error", { message: status.message })
+                      : t("app.status.idle");
 
   return (
     <main>
@@ -1137,6 +1226,55 @@ export default function App() {
             />
           </div>
         )}
+      </section>
+
+      <section aria-label={t("report.heading")}>
+        <h2>{t("report.heading")}</h2>
+        <p>{t("report.imageNotice")}</p>
+
+        <label htmlFor="report-title">{t("report.title.label")}</label>
+        <input
+          id="report-title"
+          type="text"
+          value={reportTitle}
+          onChange={(event) => setReportTitle(event.target.value)}
+        />
+
+        <label htmlFor="report-description">
+          {t("report.description.label")}
+        </label>
+        <textarea
+          id="report-description"
+          value={reportDescription}
+          onChange={(event) => setReportDescription(event.target.value)}
+        />
+
+        <label htmlFor="report-steps">{t("report.steps.label")}</label>
+        <textarea
+          id="report-steps"
+          value={reportSteps}
+          onChange={(event) => setReportSteps(event.target.value)}
+        />
+
+        {diagnosticInfo && (
+          <p>
+            {t("report.environment", {
+              version: diagnosticInfo.appVersion,
+              os: diagnosticInfo.os,
+              arch: diagnosticInfo.arch,
+            })}
+          </p>
+        )}
+
+        <button type="button" onClick={() => void handleSaveReport()}>
+          {t("report.saveButton")}
+        </button>
+        <button type="button" onClick={() => void handleOpenGithubIssue()}>
+          {t("report.openIssueButton")}
+        </button>
+        <button type="button" onClick={() => void handleExportDiagnosticLog()}>
+          {t("report.exportLogButton")}
+        </button>
       </section>
     </main>
   );

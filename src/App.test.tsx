@@ -10,24 +10,27 @@ const { open, save } = vi.hoisted(() => ({ open: vi.fn(), save: vi.fn() }));
 const { getVersion } = vi.hoisted(() => ({ getVersion: vi.fn() }));
 const { checkForUpdate } = vi.hoisted(() => ({ checkForUpdate: vi.fn() }));
 const { relaunch } = vi.hoisted(() => ({ relaunch: vi.fn() }));
+const { openUrl } = vi.hoisted(() => ({ openUrl: vi.fn() }));
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open, save }));
 vi.mock("@tauri-apps/api/app", () => ({ getVersion }));
 vi.mock("@tauri-apps/plugin-updater", () => ({ check: checkForUpdate }));
 vi.mock("@tauri-apps/plugin-process", () => ({ relaunch }));
+vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl }));
 
 beforeAll(async () => {
   await i18nReady;
 });
 
 beforeEach(async () => {
-  invoke.mockReset();
+  invoke.mockReset().mockResolvedValue(undefined);
   open.mockReset();
   save.mockReset();
   getVersion.mockReset().mockResolvedValue("0.1.0");
   checkForUpdate.mockReset().mockResolvedValue(null);
   relaunch.mockReset().mockResolvedValue(undefined);
+  openUrl.mockReset().mockResolvedValue(undefined);
   URL.createObjectURL = vi.fn(() => "blob:mock-preview");
   URL.revokeObjectURL = vi.fn();
   await i18n.changeLanguage("en-US");
@@ -70,10 +73,19 @@ function mockUpdate(overrides: Partial<{ version: string; body: string }> = {}) 
 }
 
 /** Routes `get_settings` to `settings`, everything else to `conversionResult()`. */
+const defaultDiagnosticInfo = {
+  appVersion: "0.1.0",
+  os: "windows",
+  arch: "x86_64",
+};
+
 function mockInvokeWithSettings(settings: typeof defaultSettings) {
   invoke.mockImplementation((command: string) => {
     if (command === "get_settings") {
       return Promise.resolve(settings);
+    }
+    if (command === "get_diagnostic_info") {
+      return Promise.resolve(defaultDiagnosticInfo);
     }
     return Promise.resolve(conversionResult());
   });
@@ -818,5 +830,81 @@ describe("App", () => {
     expect(
       await screen.findByRole("alertdialog", { name: "Update available" }),
     ).toBeInTheDocument();
+  });
+
+  it("shows the environment line once diagnostic info loads", async () => {
+    mockInvokeWithSettings(defaultSettings);
+    render(<App />);
+
+    expect(
+      await screen.findByText("LaserPrep 0.1.0 — windows/x86_64"),
+    ).toBeInTheDocument();
+  });
+
+  it("saves a bug report with the entered fields", async () => {
+    mockInvokeWithSettings(defaultSettings);
+    save.mockResolvedValue("/tmp/report.txt");
+    const user = userEvent.setup();
+
+    render(<App />);
+    await screen.findByText("LaserPrep 0.1.0 — windows/x86_64");
+
+    await user.type(screen.getByLabelText("Title"), "Export fails");
+    await user.type(
+      screen.getByLabelText("Description"),
+      "Export SVG does nothing.",
+    );
+    await user.type(screen.getByLabelText("Steps to reproduce"), "Click export.");
+    await user.click(screen.getByRole("button", { name: "Save Report" }));
+
+    expect(invoke).toHaveBeenCalledWith("write_text_file", {
+      path: "/tmp/report.txt",
+      contents: expect.stringContaining("Title: Export fails"),
+    });
+    const call = invoke.mock.calls.find(([command]) => command === "write_text_file");
+    expect(call?.[1].contents).toContain("Export SVG does nothing.");
+    expect(call?.[1].contents).toContain("Click export.");
+    expect(call?.[1].contents).toContain("LaserPrep 0.1.0 — windows/x86_64");
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Report saved.",
+    );
+  });
+
+  it("opens a pre-filled GitHub issue", async () => {
+    mockInvokeWithSettings(defaultSettings);
+    const user = userEvent.setup();
+
+    render(<App />);
+    await screen.findByText("LaserPrep 0.1.0 — windows/x86_64");
+
+    await user.type(screen.getByLabelText("Title"), "Crash on import");
+    await user.click(
+      screen.getByRole("button", { name: "Open GitHub Issue" }),
+    );
+
+    expect(openUrl).toHaveBeenCalledTimes(1);
+    const openedUrl = new URL(openUrl.mock.calls[0][0] as string);
+    expect(openedUrl.origin + openedUrl.pathname).toBe(
+      "https://github.com/tvalls/LaserPrep/issues/new",
+    );
+    expect(openedUrl.searchParams.get("title")).toBe("Crash on import");
+  });
+
+  it("exports the diagnostic log to a chosen path", async () => {
+    mockInvokeWithSettings(defaultSettings);
+    save.mockResolvedValue("/tmp/diagnostics.txt");
+    const user = userEvent.setup();
+
+    render(<App />);
+    await user.click(
+      screen.getByRole("button", { name: "Export Diagnostic Log" }),
+    );
+
+    expect(invoke).toHaveBeenCalledWith("export_diagnostics", {
+      path: "/tmp/diagnostics.txt",
+    });
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Diagnostic log exported.",
+    );
   });
 });
