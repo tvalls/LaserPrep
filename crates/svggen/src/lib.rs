@@ -98,6 +98,7 @@ mod tests {
     fn path(d: &str) -> VectorPath {
         VectorPath {
             svg_element: format!("<path d=\"{d}\" fill=\"#000000\"/>\n"),
+            start: [0.0, 0.0],
         }
     }
 

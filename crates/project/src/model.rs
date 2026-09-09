@@ -2,6 +2,7 @@ use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use chrono::Utc;
 use laserprep_analysis::Classification;
+use laserprep_optimize::LaserOptimizationScore;
 use laserprep_presets::PresetName;
 use laserprep_svggen::ValidationReport;
 use serde::{Deserialize, Serialize};
@@ -126,6 +127,12 @@ pub struct ConversionParams {
     pub min_area_px2: u32,
     pub include_legend: bool,
     pub merge_adjacent: bool,
+    /// CLAUDE.md Section 8's "Path Ordering" (`docs/roadmap.md` Phase
+    /// 5). Defaults to `false` on projects saved before this field
+    /// existed, matching their actual (unordered) behavior at the
+    /// time.
+    #[serde(default)]
+    pub order_paths: bool,
 }
 
 /// The outcome of the last conversion run for this project.
@@ -134,6 +141,11 @@ pub struct ConversionParams {
 pub struct ProjectResult {
     pub svg: String,
     pub validation: ValidationReport,
+    /// Absent on results saved before this field existed — recomputing
+    /// it would need the source image decoded again, which a plain
+    /// `#[serde(default)]` load shouldn't do as a side effect.
+    #[serde(default)]
+    pub optimization_score: Option<LaserOptimizationScore>,
 }
 
 #[cfg(test)]
@@ -156,6 +168,7 @@ mod tests {
             min_area_px2: 16,
             include_legend: false,
             merge_adjacent: false,
+            order_paths: false,
         };
         let project = ProjectFile::new(source, params, None);
 
@@ -174,6 +187,7 @@ mod tests {
             min_area_px2: 16,
             include_legend: false,
             merge_adjacent: false,
+            order_paths: false,
         };
         let mut project = ProjectFile::new(source, params, None);
         let created_at = project.created_at.clone();

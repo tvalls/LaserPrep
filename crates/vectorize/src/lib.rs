@@ -7,7 +7,7 @@
 //! implementation touches the `vtracer`/`visioncortex` crates.
 
 use laserprep_quantize::ToneMap;
-use visioncortex::{CompoundPathElement, PathSimplifyMode};
+use visioncortex::{CompoundPath, CompoundPathElement, PathSimplifyMode};
 use vtracer::{ColorImage, ColorMode, Config, Preset};
 
 /// A row-major boolean mask over an image: `true` marks a pixel that
@@ -34,9 +34,18 @@ impl BinaryMask {
 /// element (its `d`, `fill`, and any coordinate-offset `transform`
 /// attributes are already resolved) — callers embed it verbatim; they
 /// never parse or reconstruct path data themselves.
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// `start` is the path's first traced point, kept alongside the
+/// opaque `svg_element` string so `crates/optimize`'s path ordering
+/// (CLAUDE.md Section 8) has a representative point to measure travel
+/// distance from/to without parsing SVG path data back out. Every
+/// path this crate produces is closed (`Z` returns to `M`), so `start`
+/// is also where the laser head ends up after cutting the path — the
+/// one point that matters for ordering closed shapes.
+#[derive(Debug, Clone, PartialEq)]
 pub struct VectorPath {
     pub svg_element: String,
+    pub start: [f64; 2],
 }
 
 /// One traced region as raw straight-line polygon geometry: a list of
@@ -68,8 +77,15 @@ pub fn polygon_shape_to_vector_path(shape: &PolygonShape) -> VectorPath {
         data.push_str("Z ");
     }
 
+    let start = shape
+        .first()
+        .and_then(|contour| contour.first())
+        .copied()
+        .unwrap_or([0.0, 0.0]);
+
     VectorPath {
         svg_element: format!("<path d=\"{}\" fill=\"#000000\"/>\n", data.trim_end()),
+        start,
     }
 }
 
@@ -192,6 +208,30 @@ impl VtracerVectorizer {
     }
 }
 
+/// The first point of `path`'s first element, in whichever of the
+/// three [`CompoundPathElement`] variants it turns out to be — see
+/// [`VectorPath::start`]. `trace`'s default (spline) mode only ever
+/// produces `Spline` elements in practice, but this handles all three
+/// rather than assuming, since a start point just one pixel off from
+/// the path's true start still orders reasonably (better than
+/// panicking on an unexpected variant).
+fn start_point(path: &CompoundPath) -> [f64; 2] {
+    path.iter()
+        .find_map(|element| match element {
+            CompoundPathElement::PathI32(path) => path
+                .iter()
+                .next()
+                .map(|point| [f64::from(point.x), f64::from(point.y)]),
+            CompoundPathElement::PathF64(path) => {
+                path.iter().next().map(|point| [point.x, point.y])
+            }
+            CompoundPathElement::Spline(spline) => {
+                spline.iter().next().map(|point| [point.x, point.y])
+            }
+        })
+        .unwrap_or([0.0, 0.0])
+}
+
 impl Vectorizer for VtracerVectorizer {
     fn trace(&self, mask: &BinaryMask) -> Result<Vec<VectorPath>, VectorizeError> {
         let image = Self::color_image(mask)?;
@@ -203,6 +243,7 @@ impl Vectorizer for VtracerVectorizer {
             .paths
             .into_iter()
             .map(|path| VectorPath {
+                start: start_point(&path.path),
                 svg_element: path.to_string(),
             })
             .collect())
@@ -236,6 +277,18 @@ mod tests {
 
         assert_eq!(paths.len(), 1);
         assert!(paths[0].svg_element.contains("<path"));
+    }
+
+    #[test]
+    fn traced_paths_record_a_real_start_point_on_the_square() {
+        let mask = solid_square_mask(12, 12);
+        let paths = VtracerVectorizer::default().trace(&mask).unwrap();
+
+        // The square spans roughly [2, 10) on both axes (see
+        // `solid_square_mask`); the traced start point should land
+        // somewhere on that boundary, not at the [0.0, 0.0] fallback.
+        let [x, y] = paths[0].start;
+        assert!((2.0..=10.0).contains(&x) && (2.0..=10.0).contains(&y));
     }
 
     #[test]

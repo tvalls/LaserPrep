@@ -21,6 +21,8 @@
   "minArea.label": "最小面积（平方像素）",
   "legend.label": "包含色调图例",
   "mergeAdjacent.label": "合并相邻区域",
+  "orderPaths.label": "路径排序（减少激光空程）",
+  "optimizationScore.summary": "激光优化度：达到最优空程的 {{efficiency}}%。",
   "classification.summary": "检测到的类别：{{category}}（置信度 {{confidence}}%）。",
   "preset.suggestion": "建议预设：{{preset}}。",
   "preset.applyButton": "应用预设",

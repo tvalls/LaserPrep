@@ -62,11 +62,18 @@ type Preset = {
   mergeAdjacent: boolean;
 };
 
+type LaserOptimizationScore = {
+  travelDistance: number;
+  optimalTravelDistance: number;
+  efficiency: number;
+};
+
 type ConversionResult = {
   svg: string;
   validation: ValidationReport;
   classification: Classification;
   suggestedPreset: Preset;
+  optimizationScore: LaserOptimizationScore;
 };
 
 type ProjectParams = {
@@ -75,6 +82,7 @@ type ProjectParams = {
   minAreaPx2: number;
   includeLegend: boolean;
   mergeAdjacent: boolean;
+  orderPaths: boolean;
 };
 
 type OpenedProject = {
@@ -82,7 +90,11 @@ type OpenedProject = {
   params: ProjectParams;
   preset: PresetName | null;
   classification: Classification | null;
-  result: { svg: string; validation: ValidationReport } | null;
+  result: {
+    svg: string;
+    validation: ValidationReport;
+    optimizationScore: LaserOptimizationScore | null;
+  } | null;
 };
 
 type ParamsSnapshot = {
@@ -91,6 +103,7 @@ type ParamsSnapshot = {
   minAreaPx2: number;
   includeLegend: boolean;
   mergeAdjacent: boolean;
+  orderPaths: boolean;
   presetName: PresetName | null;
 };
 
@@ -146,8 +159,11 @@ export default function App() {
   const [minAreaText, setMinAreaText] = useState(String(DEFAULT_MIN_AREA_PX2));
   const [includeLegend, setIncludeLegend] = useState(false);
   const [mergeAdjacent, setMergeAdjacent] = useState(false);
+  const [orderPaths, setOrderPaths] = useState(false);
   const [svg, setSvg] = useState<string | null>(null);
   const [validation, setValidation] = useState<ValidationReport | null>(null);
+  const [optimizationScore, setOptimizationScore] =
+    useState<LaserOptimizationScore | null>(null);
   const [classification, setClassification] = useState<Classification | null>(
     null,
   );
@@ -165,12 +181,20 @@ export default function App() {
   }>({ past: [], future: [] });
 
   function currentParamsSnapshot(): ParamsSnapshot {
-    return { dpi, toneCount, minAreaPx2, includeLegend, mergeAdjacent, presetName };
+    return {
+      dpi,
+      toneCount,
+      minAreaPx2,
+      includeLegend,
+      mergeAdjacent,
+      orderPaths,
+      presetName,
+    };
   }
 
   /** The subset of `currentParamsSnapshot` the backend's `ConversionParams` expects (no `presetName`). */
   function currentParams(): ProjectParams {
-    return { dpi, toneCount, minAreaPx2, includeLegend, mergeAdjacent };
+    return { dpi, toneCount, minAreaPx2, includeLegend, mergeAdjacent, orderPaths };
   }
 
   function applyParamsSnapshot(snapshot: ParamsSnapshot) {
@@ -179,6 +203,7 @@ export default function App() {
     setMinAreaPx2(snapshot.minAreaPx2);
     setIncludeLegend(snapshot.includeLegend);
     setMergeAdjacent(snapshot.mergeAdjacent);
+    setOrderPaths(snapshot.orderPaths);
     setPresetName(snapshot.presetName);
   }
 
@@ -271,6 +296,7 @@ export default function App() {
     setValidation(result.validation);
     setClassification(result.classification);
     setSuggestedPreset(result.suggestedPreset);
+    setOptimizationScore(result.optimizationScore);
   }
 
   function clearConversionResult() {
@@ -278,6 +304,7 @@ export default function App() {
     setValidation(null);
     setClassification(null);
     setSuggestedPreset(null);
+    setOptimizationScore(null);
   }
 
   async function handleImport() {
@@ -333,6 +360,7 @@ export default function App() {
       minAreaPx2: preset.minAreaPx2,
       includeLegend: preset.includeLegend,
       mergeAdjacent: preset.mergeAdjacent,
+      orderPaths,
       presetName: preset.name,
     });
   }
@@ -371,10 +399,13 @@ export default function App() {
       await invoke("save_project", {
         request: {
           projectPath: path,
-          params: { dpi, toneCount, minAreaPx2, includeLegend, mergeAdjacent },
+          params: currentParams(),
           preset: presetName,
           classification,
-          result: svg && validation ? { svg, validation } : null,
+          result:
+            svg && validation
+              ? { svg, validation, optimizationScore }
+              : null,
         },
       });
       setStatus({ kind: "projectSaved" });
@@ -402,9 +433,11 @@ export default function App() {
       if (project.result) {
         setSvg(project.result.svg);
         setValidation(project.result.validation);
+        setOptimizationScore(project.result.optimizationScore);
       } else {
         setSvg(null);
         setValidation(null);
+        setOptimizationScore(null);
       }
       setHasSourceImage(true);
       setSourceFileName(project.sourceFileName);
@@ -543,6 +576,10 @@ export default function App() {
     commitParamsChange({ ...currentParamsSnapshot(), mergeAdjacent: checked, presetName: null });
   }
 
+  function handleOrderPathsChange(checked: boolean) {
+    commitParamsChange({ ...currentParamsSnapshot(), orderPaths: checked, presetName: null });
+  }
+
   const batchCompletedCount = batchItems.filter(
     (item) => item.status === "success" || item.status === "error",
   ).length;
@@ -617,6 +654,14 @@ export default function App() {
           type="checkbox"
           checked={mergeAdjacent}
           onChange={(event) => handleMergeAdjacentChange(event.target.checked)}
+        />
+
+        <label htmlFor="order-paths">{t("orderPaths.label")}</label>
+        <input
+          id="order-paths"
+          type="checkbox"
+          checked={orderPaths}
+          onChange={(event) => handleOrderPathsChange(event.target.checked)}
         />
       </div>
 
@@ -693,6 +738,14 @@ export default function App() {
           {validation.lightburnIncompatibilities.length > 0 && (
             <> {t("validation.lightburnWarning")}</>
           )}
+        </p>
+      )}
+
+      {optimizationScore && (
+        <p>
+          {t("optimizationScore.summary", {
+            efficiency: Math.round(optimizationScore.efficiency * 100),
+          })}
         </p>
       )}
 
