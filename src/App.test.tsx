@@ -84,11 +84,13 @@ describe("App", () => {
     );
     expect(invoke).toHaveBeenCalledWith("convert_image_file", {
       path: "/tmp/photo.png",
-      dpi: 96,
-      toneCount: 5,
-      minAreaPx2: 16,
-      includeLegend: false,
-      mergeAdjacent: false,
+      params: {
+        dpi: 96,
+        toneCount: 5,
+        minAreaPx2: 16,
+        includeLegend: false,
+        mergeAdjacent: false,
+      },
     });
     expect(screen.getByRole("img")).toHaveAttribute(
       "src",
@@ -327,11 +329,13 @@ describe("App", () => {
     await user.click(screen.getByRole("button", { name: "Reconvert" }));
 
     expect(invoke).toHaveBeenLastCalledWith("convert_current_source", {
-      dpi: 96,
-      toneCount: 5,
-      minAreaPx2: 16,
-      includeLegend: false,
-      mergeAdjacent: false,
+      params: {
+        dpi: 96,
+        toneCount: 5,
+        minAreaPx2: 16,
+        includeLegend: false,
+        mergeAdjacent: false,
+      },
     });
     expect(await screen.findByText("7 paths, 12 nodes.")).toBeInTheDocument();
   });

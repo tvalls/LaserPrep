@@ -6,7 +6,7 @@
 mod commands;
 mod pipeline;
 
-use commands::SourceImageState;
+use commands::{DecodedSourceState, SourceImageState};
 use laserprep_settings::SettingsStore;
 use tauri::Manager;
 
@@ -28,6 +28,7 @@ pub fn run() {
         ])
         .setup(|app| {
             app.manage(SourceImageState::default());
+            app.manage(DecodedSourceState::default());
 
             let config_dir = match app.path().app_config_dir() {
                 Ok(dir) => dir,

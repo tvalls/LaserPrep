@@ -8,7 +8,7 @@
 
 use laserprep_analysis::{Classification, analyze, classify};
 use laserprep_domain::{ToneCount, ToneCountError};
-use laserprep_imaging::{ImagingError, load_rgb_from_bytes};
+use laserprep_imaging::{ImagingError, RgbImage, load_rgb_from_bytes};
 use laserprep_optimize::merge_adjacent_regions;
 use laserprep_presets::{Preset, suggest_preset};
 use laserprep_quantize::{QuantizeError, quantize_linear};
@@ -49,17 +49,41 @@ pub struct ConversionResult {
     pub suggested_preset: Preset,
 }
 
-/// Decodes, quantizes, vectorizes, and renders `bytes` as an SVG
-/// document — one traced `<path>` set per tone level — and validates
-/// the result. `min_area_px2` is CLAUDE.md Section 8's "Minimum Area"
-/// noise filter (see [`VtracerVectorizer`]); `include_legend` adds the
-/// optional tone legend (CLAUDE.md Section 10); `merge_adjacent`
-/// applies `laserprep_optimize::merge_adjacent_regions` per tone
-/// (CLAUDE.md Section 8: "Merge Adjacent Regions"), trading curve
-/// fitting for straight-line polygons on the tones it merges (see
-/// `laserprep_vectorize::PolygonShape`).
-pub fn convert_bytes_to_svg(
-    bytes: &[u8],
+/// A decoded image plus its heuristic [`Classification`] — the part of
+/// the pipeline that depends only on the source image bytes, not on
+/// any conversion parameter (tone count, minimum area, legend, merge
+/// adjacent). Callers that reconvert the same image with new
+/// parameters (the UI's Reconvert action, undo/redo) can decode and
+/// classify once and reuse this across calls to
+/// [`convert_decoded_to_svg`] instead of repeating that work — see
+/// `commands::DecodedSourceCache`.
+pub struct DecodedSource {
+    pub image: RgbImage,
+    pub classification: Classification,
+}
+
+/// Decodes `bytes` and runs the heuristic content classifier
+/// (CLAUDE.md Section 6) on the result.
+pub fn decode_and_classify(bytes: &[u8]) -> Result<DecodedSource, PipelineError> {
+    let image = load_rgb_from_bytes(bytes)?;
+    let classification = classify(&analyze(&image));
+    Ok(DecodedSource {
+        image,
+        classification,
+    })
+}
+
+/// Quantizes, vectorizes, and renders an already-decoded [`DecodedSource`]
+/// as an SVG document — one traced `<path>` set per tone level — and
+/// validates the result. `min_area_px2` is CLAUDE.md Section 8's
+/// "Minimum Area" noise filter (see [`VtracerVectorizer`]);
+/// `include_legend` adds the optional tone legend (CLAUDE.md Section
+/// 10); `merge_adjacent` applies `laserprep_optimize::merge_adjacent_regions`
+/// per tone (CLAUDE.md Section 8: "Merge Adjacent Regions"), trading
+/// curve fitting for straight-line polygons on the tones it merges
+/// (see `laserprep_vectorize::PolygonShape`).
+pub fn convert_decoded_to_svg(
+    source: &DecodedSource,
     dpi: f64,
     tone_count: u8,
     min_area_px2: u32,
@@ -67,9 +91,7 @@ pub fn convert_bytes_to_svg(
     merge_adjacent: bool,
 ) -> Result<ConversionResult, PipelineError> {
     let tone_count = ToneCount::new(tone_count)?;
-    let rgb_image = load_rgb_from_bytes(bytes)?;
-    let classification = classify(&analyze(&rgb_image));
-    let image = rgb_image.to_luminance();
+    let image = source.image.to_luminance();
     let tone_map = quantize_linear(&image.samples, image.width, image.height, tone_count)?;
 
     let vectorizer = VtracerVectorizer::new(min_area_px2);
@@ -99,12 +121,12 @@ pub fn convert_bytes_to_svg(
         },
     );
     let validation = validate(&svg, tone_map.width, tone_map.height, tone_count.get());
-    let suggested_preset = suggest_preset(classification.category);
+    let suggested_preset = suggest_preset(source.classification.category);
 
     Ok(ConversionResult {
         svg,
         validation,
-        classification,
+        classification: source.classification,
         suggested_preset,
     })
 }
@@ -119,6 +141,33 @@ mod tests {
     use super::*;
     use image::{ImageBuffer, Rgb};
     use std::io::Cursor;
+
+    /// Decodes, classifies, and converts `bytes` in one call — what
+    /// `pipeline::convert_bytes_to_svg` used to do before decode/
+    /// classify and the parameter-dependent stages were split apart
+    /// for `commands::DecodedSourceState` to cache the former. Kept
+    /// test-only since production callers now have a real reason to
+    /// call the two steps separately (`commands.rs`), and a `pub`
+    /// wrapper with no other caller is exactly the dead code clippy's
+    /// `-D warnings` (rightly) rejects.
+    fn convert(
+        bytes: &[u8],
+        dpi: f64,
+        tone_count: u8,
+        min_area_px2: u32,
+        include_legend: bool,
+        merge_adjacent: bool,
+    ) -> Result<ConversionResult, PipelineError> {
+        let source = decode_and_classify(bytes)?;
+        convert_decoded_to_svg(
+            &source,
+            dpi,
+            tone_count,
+            min_area_px2,
+            include_legend,
+            merge_adjacent,
+        )
+    }
 
     fn synthetic_png() -> Vec<u8> {
         // A 12x12 image with a solid dark 8x8 square on a light
@@ -140,7 +189,7 @@ mod tests {
 
     #[test]
     fn converts_a_decoded_image_end_to_end() {
-        let result = convert_bytes_to_svg(
+        let result = convert(
             &synthetic_png(),
             96.0,
             2,
@@ -157,7 +206,7 @@ mod tests {
 
     #[test]
     fn validates_the_generated_document() {
-        let result = convert_bytes_to_svg(
+        let result = convert(
             &synthetic_png(),
             96.0,
             2,
@@ -177,7 +226,7 @@ mod tests {
 
     #[test]
     fn includes_a_legend_group_when_requested() {
-        let result = convert_bytes_to_svg(
+        let result = convert(
             &synthetic_png(),
             96.0,
             2,
@@ -191,7 +240,7 @@ mod tests {
 
     #[test]
     fn merges_adjacent_regions_when_requested() {
-        let result = convert_bytes_to_svg(
+        let result = convert(
             &synthetic_png(),
             96.0,
             2,
@@ -206,7 +255,7 @@ mod tests {
 
     #[test]
     fn includes_a_heuristic_classification() {
-        let result = convert_bytes_to_svg(
+        let result = convert(
             &synthetic_png(),
             96.0,
             2,
@@ -220,7 +269,7 @@ mod tests {
 
     #[test]
     fn includes_a_suggested_preset_matching_the_classification() {
-        let result = convert_bytes_to_svg(
+        let result = convert(
             &synthetic_png(),
             96.0,
             2,
@@ -237,7 +286,7 @@ mod tests {
 
     #[test]
     fn rejects_an_invalid_tone_count() {
-        let err = convert_bytes_to_svg(
+        let err = convert(
             &synthetic_png(),
             96.0,
             1,
@@ -251,7 +300,7 @@ mod tests {
 
     #[test]
     fn rejects_undecodable_bytes() {
-        let err = convert_bytes_to_svg(
+        let err = convert(
             &[0, 1, 2, 3],
             96.0,
             5,
@@ -270,7 +319,7 @@ mod tests {
         std::fs::write(&input_path, synthetic_png()).unwrap();
 
         let bytes = std::fs::read(&input_path).unwrap();
-        let result = convert_bytes_to_svg(
+        let result = convert(
             &bytes,
             96.0,
             2,
