@@ -79,5 +79,7 @@
   "report.environment": "LaserPrep {{version}} — {{os}}/{{arch}}",
   "report.saveButton": "Save Report",
   "report.openIssueButton": "Open GitHub Issue",
-  "report.exportLogButton": "Export Diagnostic Log"
+  "report.exportLogButton": "Export Diagnostic Log",
+  "errorBoundary.title": "Something went wrong",
+  "errorBoundary.message": "LaserPrep ran into an unexpected error and needs to restart. Nothing was sent anywhere — a note was added to the local diagnostic log, which you can export from Report a Problem after restarting."
 }

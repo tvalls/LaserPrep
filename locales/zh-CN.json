@@ -79,5 +79,7 @@
   "report.environment": "LaserPrep {{version}} — {{os}}/{{arch}}",
   "report.saveButton": "保存报告",
   "report.openIssueButton": "在 GitHub 上提交 Issue",
-  "report.exportLogButton": "导出诊断日志"
+  "report.exportLogButton": "导出诊断日志",
+  "errorBoundary.title": "出现了问题",
+  "errorBoundary.message": "LaserPrep 遇到意外错误，需要重启。没有任何数据被发送出去——已在本地诊断日志中记录了此次错误，重启后可在“报告问题”中导出。"
 }

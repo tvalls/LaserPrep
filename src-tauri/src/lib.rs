@@ -30,6 +30,7 @@ pub fn run() {
             commands::save_settings,
             commands::get_diagnostic_info,
             commands::export_diagnostics,
+            commands::log_frontend_error,
         ])
         .setup(|app| {
             // Logging can't start until the app handle exists (the log
@@ -54,6 +55,18 @@ pub fn run() {
             // Dropping this stops the background thread that flushes
             // log writes to disk, so it must outlive the app.
             app.manage(guard);
+
+            // A Rust panic otherwise only goes to the default panic
+            // hook (stderr), invisible for a windowed app with no
+            // console — this is the "no mínimo logs locais" half of
+            // CLAUDE.md Section 20's crash reporting requirement.
+            // Chained rather than replaced, so a debug console (when
+            // one exists) still sees the standard panic output too.
+            let default_panic_hook = std::panic::take_hook();
+            std::panic::set_hook(Box::new(move |panic_info| {
+                tracing::error!("panic: {panic_info}");
+                default_panic_hook(panic_info);
+            }));
 
             app.manage(SourceImageState::default());
             app.manage(DecodedSourceState::default());
