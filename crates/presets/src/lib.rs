@@ -9,7 +9,7 @@ use laserprep_analysis::ContentCategory;
 /// starting defaults chosen by hand, not tuned against a real-image
 /// benchmark — expect them to be adjusted as Phase 3 category-specific
 /// pipelines mature (`docs/roadmap.md`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Preset {
     pub name: PresetName,
@@ -25,7 +25,7 @@ pub struct Preset {
     pub merge_adjacent: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum PresetName {
     Photo,
     Portrait,

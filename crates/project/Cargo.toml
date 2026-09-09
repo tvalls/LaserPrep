@@ -9,4 +9,14 @@ description = "The .lvp project file format: original image, parameters, preset,
 
 [dependencies]
 laserprep-domain.workspace = true
+laserprep-analysis.workspace = true
+laserprep-presets.workspace = true
+laserprep-svggen.workspace = true
 serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+chrono.workspace = true
+base64.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
