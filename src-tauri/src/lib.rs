@@ -22,6 +22,7 @@ pub fn run() {
             commands::convert_image_file,
             commands::convert_current_source,
             commands::save_svg_file,
+            commands::save_svg_files,
             commands::save_project,
             commands::open_project,
         ])

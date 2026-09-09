@@ -85,6 +85,16 @@ type OpenedProject = {
   result: { svg: string; validation: ValidationReport } | null;
 };
 
+type BatchItemStatus = "pending" | "converting" | "success" | "error";
+
+type BatchItem = {
+  path: string;
+  fileName: string;
+  status: BatchItemStatus;
+  svg?: string;
+  errorMessage?: string;
+};
+
 const CATEGORY_LABEL_KEYS: Record<ContentCategory, string> = {
   UniformBackground: "category.uniformBackground",
   Logo: "category.logo",
@@ -100,6 +110,13 @@ const PRESET_LABEL_KEYS: Record<PresetName, string> = {
   Logo: "preset.logo",
   Drawing: "preset.drawing",
   Landscape: "preset.landscape",
+};
+
+const BATCH_STATUS_LABEL_KEYS: Record<BatchItemStatus, string> = {
+  pending: "batch.status.pending",
+  converting: "batch.status.converting",
+  success: "batch.status.success",
+  error: "batch.status.error",
 };
 
 export default function App() {
@@ -120,6 +137,8 @@ export default function App() {
   const [sourceFileName, setSourceFileName] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
+  const [batchItems, setBatchItems] = useState<BatchItem[]>([]);
+  const [batchRunning, setBatchRunning] = useState(false);
 
   useEffect(() => {
     if (!svg) {
@@ -288,6 +307,93 @@ export default function App() {
     }
   }
 
+  /**
+   * Converts each selected file one at a time (CLAUDE.md Section 12:
+   * "fila, progresso, sucesso/erro por item"). Sequential rather than
+   * parallel: `convert_image_file` also records its source image in
+   * the backend's shared "current source" state (used by Reconvert /
+   * Save Project), and concurrent calls would race on that.
+   */
+  async function handleBatchImport() {
+    const paths = await open({
+      multiple: true,
+      filters: [{ name: "Images", extensions: ["png", "jpg", "jpeg"] }],
+    });
+    const selected = Array.isArray(paths) ? paths : [];
+    if (selected.length === 0) {
+      return;
+    }
+
+    setBatchItems(
+      selected.map((path) => ({
+        path,
+        fileName: path.split(/[/\\]/).pop() ?? path,
+        status: "pending",
+      })),
+    );
+    setBatchRunning(true);
+
+    for (let index = 0; index < selected.length; index++) {
+      const path = selected[index];
+      setBatchItems((items) =>
+        items.map((item, i) =>
+          i === index ? { ...item, status: "converting" } : item,
+        ),
+      );
+
+      try {
+        const result = await invoke<ConversionResult>("convert_image_file", {
+          path,
+          dpi,
+          toneCount,
+          minAreaPx2,
+          includeLegend,
+          mergeAdjacent,
+        });
+        setBatchItems((items) =>
+          items.map((item, i) =>
+            i === index ? { ...item, status: "success", svg: result.svg } : item,
+          ),
+        );
+      } catch (error) {
+        setBatchItems((items) =>
+          items.map((item, i) =>
+            i === index
+              ? { ...item, status: "error", errorMessage: String(error) }
+              : item,
+          ),
+        );
+      }
+    }
+
+    setBatchRunning(false);
+  }
+
+  async function handleSaveAllBatchSvgs() {
+    const successfulItems = batchItems.filter(
+      (item) => item.status === "success" && item.svg,
+    );
+    if (successfulItems.length === 0) {
+      return;
+    }
+
+    const directory = await open({ directory: true });
+    if (typeof directory !== "string") {
+      return;
+    }
+
+    const files = successfulItems.map((item) => ({
+      path: `${directory}/${item.fileName.replace(/\.[^./\\]+$/, "")}.svg`,
+      svg: item.svg as string,
+    }));
+
+    try {
+      await invoke("save_svg_files", { files });
+    } catch (error) {
+      setStatus({ kind: "error", message: String(error) });
+    }
+  }
+
   function handleToneCountChange(value: string) {
     const next = Number(value);
     if (!Number.isNaN(next)) {
@@ -321,6 +427,13 @@ export default function App() {
     setMergeAdjacent(checked);
     setPresetName(null);
   }
+
+  const batchCompletedCount = batchItems.filter(
+    (item) => item.status === "success" || item.status === "error",
+  ).length;
+  const batchSuccessCount = batchItems.filter(
+    (item) => item.status === "success",
+  ).length;
 
   const statusText =
     status.kind === "converting"
@@ -454,6 +567,48 @@ export default function App() {
       )}
 
       {previewUrl && <img src={previewUrl} alt={t("app.title")} />}
+
+      <section aria-label={t("batch.heading")}>
+        <h2>{t("batch.heading")}</h2>
+        <button
+          type="button"
+          onClick={() => void handleBatchImport()}
+          disabled={batchRunning}
+        >
+          {t("batch.importButton")}
+        </button>
+
+        {batchItems.length > 0 && (
+          <>
+            <p>
+              {t("batch.progress", {
+                completed: batchCompletedCount,
+                total: batchItems.length,
+              })}
+            </p>
+            <ul>
+              {batchItems.map((item) => (
+                <li key={item.path}>
+                  {item.fileName}
+                  {": "}
+                  {item.status === "error"
+                    ? t(BATCH_STATUS_LABEL_KEYS.error, {
+                        message: item.errorMessage,
+                      })
+                    : t(BATCH_STATUS_LABEL_KEYS[item.status])}
+                </li>
+              ))}
+            </ul>
+            <button
+              type="button"
+              onClick={() => void handleSaveAllBatchSvgs()}
+              disabled={batchRunning || batchSuccessCount === 0}
+            >
+              {t("batch.saveAllButton")}
+            </button>
+          </>
+        )}
+      </section>
 
       <label htmlFor="language-switcher">
         {t("language.switcher.label")}

@@ -38,5 +38,13 @@
   "validation.lightburnWarning": "Aviso: incompatível com o LightBurn.",
   "common.ok": "OK",
   "common.cancel": "Cancelar",
-  "language.switcher.label": "Idioma"
+  "language.switcher.label": "Idioma",
+  "batch.heading": "Conversão em lote",
+  "batch.importButton": "Importar imagens (lote)",
+  "batch.saveAllButton": "Salvar todos os SVGs",
+  "batch.progress": "{{completed}} de {{total}} processados",
+  "batch.status.pending": "Pendente",
+  "batch.status.converting": "Convertendo…",
+  "batch.status.success": "Concluído",
+  "batch.status.error": "Erro: {{message}}"
 }
