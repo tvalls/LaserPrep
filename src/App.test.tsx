@@ -371,4 +371,53 @@ describe("App", () => {
       }),
     );
   });
+
+  it("runs a batch conversion over multiple images, tracking success and error per item", async () => {
+    open.mockResolvedValueOnce(["/tmp/a.png", "/tmp/b.png"]);
+    invoke.mockImplementation((command: string, args: { path?: string }) => {
+      if (command === "convert_image_file") {
+        return args.path === "/tmp/a.png"
+          ? Promise.resolve(conversionResult())
+          : Promise.reject(new Error("decode failed"));
+      }
+      return Promise.resolve(undefined);
+    });
+    const user = userEvent.setup();
+
+    render(<App />);
+    await user.click(
+      screen.getByRole("button", { name: "Import Images (Batch)" }),
+    );
+
+    expect(await screen.findByText("2 of 2 processed")).toBeInTheDocument();
+    expect(screen.getByText("a.png: Done")).toBeInTheDocument();
+    expect(screen.getByText(/b\.png: Error:/)).toBeInTheDocument();
+  });
+
+  it("saves all successful batch SVGs to a chosen directory", async () => {
+    open
+      .mockResolvedValueOnce(["/tmp/a.png", "/tmp/b.png"])
+      .mockResolvedValueOnce("/out");
+    invoke.mockImplementation((command: string, args: { path?: string }) => {
+      if (command === "convert_image_file") {
+        return args.path === "/tmp/a.png"
+          ? Promise.resolve(conversionResult())
+          : Promise.reject(new Error("decode failed"));
+      }
+      return Promise.resolve(undefined);
+    });
+    const user = userEvent.setup();
+
+    render(<App />);
+    await user.click(
+      screen.getByRole("button", { name: "Import Images (Batch)" }),
+    );
+    await screen.findByText("2 of 2 processed");
+
+    await user.click(screen.getByRole("button", { name: "Save All SVGs" }));
+
+    expect(invoke).toHaveBeenCalledWith("save_svg_files", {
+      files: [{ path: "/out/a.svg", svg: "<svg></svg>" }],
+    });
+  });
 });

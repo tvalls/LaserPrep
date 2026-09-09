@@ -91,6 +91,43 @@ pub fn save_svg_file(path: String, svg: String) -> Result<(), String> {
     pipeline::save_svg_to_file(Path::new(&path), &svg).map_err(|err| err.to_string())
 }
 
+/// One SVG document to write to `path`, as produced by a batch
+/// conversion (CLAUDE.md Section 12).
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SvgFileToSave {
+    pub path: String,
+    pub svg: String,
+}
+
+/// The outcome of writing one file from [`save_svg_files`]. A plain
+/// `Result` per file rather than a single `Result<(), String>` for the
+/// whole batch, so one file failing (e.g. a permission error) doesn't
+/// hide whether the others succeeded.
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveSvgFileOutcome {
+    pub path: String,
+    pub error: Option<String>,
+}
+
+/// Writes every file in `files`, continuing past individual failures.
+#[tauri::command]
+pub fn save_svg_files(files: Vec<SvgFileToSave>) -> Vec<SaveSvgFileOutcome> {
+    files
+        .into_iter()
+        .map(|file| {
+            let error = pipeline::save_svg_to_file(Path::new(&file.path), &file.svg)
+                .err()
+                .map(|err| err.to_string());
+            SaveSvgFileOutcome {
+                path: file.path,
+                error,
+            }
+        })
+        .collect()
+}
+
 /// Arguments for [`save_project`], bundled into one struct (rather than
 /// flat command arguments) since it needs to carry every field of a
 /// `.lvp` project except the source image, which comes from

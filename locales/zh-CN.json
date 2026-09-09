@@ -38,5 +38,13 @@
   "validation.lightburnWarning": "警告：与 LightBurn 不兼容。",
   "common.ok": "确定",
   "common.cancel": "取消",
-  "language.switcher.label": "语言"
+  "language.switcher.label": "语言",
+  "batch.heading": "批量转换",
+  "batch.importButton": "导入图片（批量）",
+  "batch.saveAllButton": "保存全部 SVG",
+  "batch.progress": "已处理 {{completed}} / {{total}}",
+  "batch.status.pending": "等待中",
+  "batch.status.converting": "正在转换…",
+  "batch.status.success": "已完成",
+  "batch.status.error": "错误：{{message}}"
 }
