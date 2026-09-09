@@ -234,4 +234,141 @@ describe("App", () => {
 
     expect(screen.getByRole("button", { name: "Export SVG" })).toBeDisabled();
   });
+
+  it("keeps reconvert and save-project disabled before anything is imported", () => {
+    render(<App />);
+
+    expect(screen.getByRole("button", { name: "Reconvert" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Save Project" }),
+    ).toBeDisabled();
+  });
+
+  it("reconverts the current source image with updated parameters", async () => {
+    open.mockResolvedValue("/tmp/photo.png");
+    invoke.mockResolvedValue(conversionResult());
+    const user = userEvent.setup();
+
+    render(<App />);
+    await user.click(screen.getByRole("button", { name: "Import Image" }));
+    await screen.findByRole("img");
+
+    invoke.mockResolvedValue(conversionResult({ totalPaths: 7 }));
+    await user.click(screen.getByRole("button", { name: "Reconvert" }));
+
+    expect(invoke).toHaveBeenLastCalledWith("convert_current_source", {
+      dpi: 96,
+      toneCount: 5,
+      minAreaPx2: 16,
+      includeLegend: false,
+      mergeAdjacent: false,
+    });
+    expect(await screen.findByText("7 paths, 12 nodes.")).toBeInTheDocument();
+  });
+
+  it("saves a project built from the current source and parameters", async () => {
+    open.mockResolvedValue("/tmp/photo.png");
+    save.mockResolvedValue("/tmp/photo.lvp");
+    invoke.mockResolvedValue(conversionResult());
+    const user = userEvent.setup();
+
+    render(<App />);
+    await user.click(screen.getByRole("button", { name: "Import Image" }));
+    await screen.findByRole("img");
+
+    invoke.mockResolvedValue(undefined);
+    await user.click(screen.getByRole("button", { name: "Save Project" }));
+
+    expect(invoke).toHaveBeenLastCalledWith("save_project", {
+      request: {
+        projectPath: "/tmp/photo.lvp",
+        params: {
+          dpi: 96,
+          toneCount: 5,
+          minAreaPx2: 16,
+          includeLegend: false,
+          mergeAdjacent: false,
+        },
+        preset: null,
+        classification: { category: "GenericPhoto", confidence: 0.25 },
+        result: { svg: "<svg></svg>", validation: cleanValidation },
+      },
+    });
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Project saved.",
+    );
+  });
+
+  it("opens a project and restores its parameters and result", async () => {
+    open.mockResolvedValue("/tmp/photo.lvp");
+    invoke.mockResolvedValue({
+      sourceFileName: "photo.png",
+      params: {
+        dpi: 150,
+        toneCount: 3,
+        minAreaPx2: 20,
+        includeLegend: true,
+        mergeAdjacent: true,
+      },
+      preset: "Logo",
+      classification: { category: "Logo", confidence: 0.9 },
+      result: { svg: "<svg></svg>", validation: cleanValidation },
+    });
+    const user = userEvent.setup();
+
+    render(<App />);
+    await user.click(screen.getByRole("button", { name: "Open Project" }));
+
+    expect(invoke).toHaveBeenCalledWith("open_project", {
+      path: "/tmp/photo.lvp",
+    });
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Opened project (photo.png).",
+    );
+    expect(screen.getByLabelText("Tone count")).toHaveValue(3);
+    expect(screen.getByLabelText("Source DPI")).toHaveValue(150);
+    expect(screen.getByLabelText("Minimum area (px²)")).toHaveValue(20);
+    expect(screen.getByLabelText("Include tone legend")).toBeChecked();
+    expect(screen.getByLabelText("Merge adjacent regions")).toBeChecked();
+    expect(screen.getByRole("img")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Save Project" }),
+    ).toBeEnabled();
+  });
+
+  it("clears the applied preset once a parameter is edited manually", async () => {
+    open.mockResolvedValue("/tmp/photo.png");
+    save.mockResolvedValue("/tmp/photo.lvp");
+    invoke.mockResolvedValue({
+      svg: "<svg></svg>",
+      validation: cleanValidation,
+      classification: { category: "Logo", confidence: 0.8 },
+      suggestedPreset: {
+        name: "Logo",
+        toneCount: 2,
+        minAreaPx2: 4,
+        includeLegend: false,
+        mergeAdjacent: true,
+      },
+    });
+    const user = userEvent.setup();
+
+    render(<App />);
+    await user.click(screen.getByRole("button", { name: "Import Image" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Apply preset" }),
+    );
+    await user.clear(screen.getByLabelText("Tone count"));
+    await user.type(screen.getByLabelText("Tone count"), "6");
+
+    invoke.mockResolvedValue(undefined);
+    await user.click(screen.getByRole("button", { name: "Save Project" }));
+
+    expect(invoke).toHaveBeenLastCalledWith(
+      "save_project",
+      expect.objectContaining({
+        request: expect.objectContaining({ preset: null }),
+      }),
+    );
+  });
 });

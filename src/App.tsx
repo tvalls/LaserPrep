@@ -15,12 +15,22 @@ type Status =
   | { kind: "idle" }
   | { kind: "converting" }
   | { kind: "converted" }
+  | { kind: "savingProject" }
+  | { kind: "projectSaved" }
+  | { kind: "openingProject" }
+  | { kind: "projectOpened" }
   | { kind: "error"; message: string };
 
 type ValidationReport = {
+  width: number;
+  height: number;
+  toneCount: number;
   totalPaths: number;
+  closedPaths: number;
   openPaths: number;
+  degeneratePaths: number;
   totalNodes: number;
+  invalidCoordinatePaths: number;
   lightburnIncompatibilities: string[];
 };
 
@@ -59,6 +69,22 @@ type ConversionResult = {
   suggestedPreset: Preset;
 };
 
+type ProjectParams = {
+  dpi: number;
+  toneCount: number;
+  minAreaPx2: number;
+  includeLegend: boolean;
+  mergeAdjacent: boolean;
+};
+
+type OpenedProject = {
+  sourceFileName: string | null;
+  params: ProjectParams;
+  preset: PresetName | null;
+  classification: Classification | null;
+  result: { svg: string; validation: ValidationReport } | null;
+};
+
 const CATEGORY_LABEL_KEYS: Record<ContentCategory, string> = {
   UniformBackground: "category.uniformBackground",
   Logo: "category.logo",
@@ -89,6 +115,9 @@ export default function App() {
     null,
   );
   const [suggestedPreset, setSuggestedPreset] = useState<Preset | null>(null);
+  const [presetName, setPresetName] = useState<PresetName | null>(null);
+  const [hasSourceImage, setHasSourceImage] = useState(false);
+  const [sourceFileName, setSourceFileName] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
 
@@ -102,6 +131,20 @@ export default function App() {
     setPreviewUrl(url);
     return () => URL.revokeObjectURL(url);
   }, [svg]);
+
+  function applyConversionResult(result: ConversionResult) {
+    setSvg(result.svg);
+    setValidation(result.validation);
+    setClassification(result.classification);
+    setSuggestedPreset(result.suggestedPreset);
+  }
+
+  function clearConversionResult() {
+    setSvg(null);
+    setValidation(null);
+    setClassification(null);
+    setSuggestedPreset(null);
+  }
 
   async function handleImport() {
     const path = await open({
@@ -122,16 +165,36 @@ export default function App() {
         includeLegend,
         mergeAdjacent,
       });
-      setSvg(result.svg);
-      setValidation(result.validation);
-      setClassification(result.classification);
-      setSuggestedPreset(result.suggestedPreset);
+      applyConversionResult(result);
+      setPresetName(null);
+      setHasSourceImage(true);
+      setSourceFileName(path.split(/[/\\]/).pop() ?? path);
       setStatus({ kind: "converted" });
     } catch (error) {
-      setSvg(null);
-      setValidation(null);
-      setClassification(null);
-      setSuggestedPreset(null);
+      clearConversionResult();
+      setHasSourceImage(false);
+      setSourceFileName(null);
+      setStatus({ kind: "error", message: String(error) });
+    }
+  }
+
+  async function handleReconvert() {
+    if (!hasSourceImage) {
+      return;
+    }
+
+    setStatus({ kind: "converting" });
+    try {
+      const result = await invoke<ConversionResult>("convert_current_source", {
+        dpi,
+        toneCount,
+        minAreaPx2,
+        includeLegend,
+        mergeAdjacent,
+      });
+      applyConversionResult(result);
+      setStatus({ kind: "converted" });
+    } catch (error) {
       setStatus({ kind: "error", message: String(error) });
     }
   }
@@ -141,6 +204,7 @@ export default function App() {
     setMinAreaPx2(preset.minAreaPx2);
     setIncludeLegend(preset.includeLegend);
     setMergeAdjacent(preset.mergeAdjacent);
+    setPresetName(preset.name);
   }
 
   async function handleExport() {
@@ -160,10 +224,75 @@ export default function App() {
     }
   }
 
+  async function handleSaveProject() {
+    if (!hasSourceImage) {
+      return;
+    }
+
+    const path = await save({
+      filters: [{ name: "LaserPrep Project", extensions: ["lvp"] }],
+    });
+    if (!path) {
+      return;
+    }
+
+    setStatus({ kind: "savingProject" });
+    try {
+      await invoke("save_project", {
+        request: {
+          projectPath: path,
+          params: { dpi, toneCount, minAreaPx2, includeLegend, mergeAdjacent },
+          preset: presetName,
+          classification,
+          result: svg && validation ? { svg, validation } : null,
+        },
+      });
+      setStatus({ kind: "projectSaved" });
+    } catch (error) {
+      setStatus({ kind: "error", message: String(error) });
+    }
+  }
+
+  async function handleOpenProject() {
+    const path = await open({
+      multiple: false,
+      filters: [{ name: "LaserPrep Project", extensions: ["lvp"] }],
+    });
+    if (typeof path !== "string") {
+      return;
+    }
+
+    setStatus({ kind: "openingProject" });
+    try {
+      const project = await invoke<OpenedProject>("open_project", { path });
+      setDpi(project.params.dpi);
+      setToneCount(project.params.toneCount);
+      setMinAreaPx2(project.params.minAreaPx2);
+      setIncludeLegend(project.params.includeLegend);
+      setMergeAdjacent(project.params.mergeAdjacent);
+      setPresetName(project.preset);
+      setClassification(project.classification);
+      setSuggestedPreset(null);
+      if (project.result) {
+        setSvg(project.result.svg);
+        setValidation(project.result.validation);
+      } else {
+        setSvg(null);
+        setValidation(null);
+      }
+      setHasSourceImage(true);
+      setSourceFileName(project.sourceFileName);
+      setStatus({ kind: "projectOpened" });
+    } catch (error) {
+      setStatus({ kind: "error", message: String(error) });
+    }
+  }
+
   function handleToneCountChange(value: string) {
     const next = Number(value);
     if (!Number.isNaN(next)) {
       setToneCount(next);
+      setPresetName(null);
     }
   }
 
@@ -171,6 +300,7 @@ export default function App() {
     const next = Number(value);
     if (!Number.isNaN(next)) {
       setDpi(next);
+      setPresetName(null);
     }
   }
 
@@ -178,7 +308,18 @@ export default function App() {
     const next = Number(value);
     if (!Number.isNaN(next)) {
       setMinAreaPx2(next);
+      setPresetName(null);
     }
+  }
+
+  function handleIncludeLegendChange(checked: boolean) {
+    setIncludeLegend(checked);
+    setPresetName(null);
+  }
+
+  function handleMergeAdjacentChange(checked: boolean) {
+    setMergeAdjacent(checked);
+    setPresetName(null);
   }
 
   const statusText =
@@ -186,9 +327,19 @@ export default function App() {
       ? t("app.status.converting")
       : status.kind === "converted"
         ? t("app.status.converted", { toneCount })
-        : status.kind === "error"
-          ? t("app.status.error", { message: status.message })
-          : t("app.status.idle");
+        : status.kind === "savingProject"
+          ? t("app.status.savingProject")
+          : status.kind === "projectSaved"
+            ? t("app.status.projectSaved")
+            : status.kind === "openingProject"
+              ? t("app.status.openingProject")
+              : status.kind === "projectOpened"
+                ? t("app.status.projectOpened", {
+                    fileName: sourceFileName ?? "",
+                  })
+                : status.kind === "error"
+                  ? t("app.status.error", { message: status.message })
+                  : t("app.status.idle");
 
   return (
     <main>
@@ -229,7 +380,7 @@ export default function App() {
           id="include-legend"
           type="checkbox"
           checked={includeLegend}
-          onChange={(event) => setIncludeLegend(event.target.checked)}
+          onChange={(event) => handleIncludeLegendChange(event.target.checked)}
         />
 
         <label htmlFor="merge-adjacent">{t("mergeAdjacent.label")}</label>
@@ -237,7 +388,7 @@ export default function App() {
           id="merge-adjacent"
           type="checkbox"
           checked={mergeAdjacent}
-          onChange={(event) => setMergeAdjacent(event.target.checked)}
+          onChange={(event) => handleMergeAdjacentChange(event.target.checked)}
         />
       </div>
 
@@ -246,6 +397,23 @@ export default function App() {
       </button>
       <button type="button" onClick={() => void handleExport()} disabled={!svg}>
         {t("export.button")}
+      </button>
+      <button
+        type="button"
+        onClick={() => void handleReconvert()}
+        disabled={!hasSourceImage}
+      >
+        {t("reconvert.button")}
+      </button>
+      <button
+        type="button"
+        onClick={() => void handleSaveProject()}
+        disabled={!hasSourceImage}
+      >
+        {t("saveProject.button")}
+      </button>
+      <button type="button" onClick={() => void handleOpenProject()}>
+        {t("openProject.button")}
       </button>
 
       <p role="status">{statusText}</p>

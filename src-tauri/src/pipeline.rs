@@ -29,8 +29,6 @@ pub enum PipelineError {
     Quantize(#[from] QuantizeError),
     #[error(transparent)]
     Vectorize(#[from] VectorizeError),
-    #[error("failed to read image file: {0}")]
-    ReadFile(std::io::Error),
     #[error("failed to write SVG file: {0}")]
     WriteFile(std::io::Error),
 }
@@ -109,26 +107,6 @@ pub fn convert_bytes_to_svg(
         classification,
         suggested_preset,
     })
-}
-
-/// Reads the image at `path` and runs [`convert_bytes_to_svg`] on it.
-pub fn convert_file_to_svg(
-    path: &Path,
-    dpi: f64,
-    tone_count: u8,
-    min_area_px2: u32,
-    include_legend: bool,
-    merge_adjacent: bool,
-) -> Result<ConversionResult, PipelineError> {
-    let bytes = std::fs::read(path).map_err(PipelineError::ReadFile)?;
-    convert_bytes_to_svg(
-        &bytes,
-        dpi,
-        tone_count,
-        min_area_px2,
-        include_legend,
-        merge_adjacent,
-    )
 }
 
 /// Writes `svg` to `path`, overwriting any existing file.
@@ -291,8 +269,9 @@ mod tests {
         let input_path = dir.path().join("input.png");
         std::fs::write(&input_path, synthetic_png()).unwrap();
 
-        let result = convert_file_to_svg(
-            &input_path,
+        let bytes = std::fs::read(&input_path).unwrap();
+        let result = convert_bytes_to_svg(
+            &bytes,
             96.0,
             2,
             laserprep_vectorize::DEFAULT_MIN_AREA_PX2,
