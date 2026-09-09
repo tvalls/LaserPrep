@@ -30,10 +30,18 @@ application is left in a partially-fake state (see CLAUDE.md Section 13).
   clarity in our own preview, not a literal emulation of LightBurn's
   renderer)*
 - **Phase 6** — Auto-update, bug reporting, crash reporting, full release
-  pipeline. *(current)*
+  pipeline. *(done — signed builds, checksums, GitHub Release
+  publication, and a signed updater manifest (`latest.json`) are all
+  in place; Rust panics and frontend rendering crashes are both
+  captured to the local diagnostic log. Not done, and out of scope for
+  what this project can set up on its own: Authenticode-signing the
+  installer/binaries themselves needs a purchased code-signing
+  certificate — a business decision for the maintainer, not an
+  engineering gap)*
 - **Phase 7** — CLI (`laser-vector convert input.jpg --preset portrait
   --tones 5 --output output.svg`), extensibility for new
   pipelines/presets/algorithms, additional formats/platforms.
+  *(current)*
 
 See the project's GitHub Issues/Projects for granular, per-phase task
 tracking as phases begin.
