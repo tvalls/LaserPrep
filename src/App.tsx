@@ -85,6 +85,15 @@ type OpenedProject = {
   result: { svg: string; validation: ValidationReport } | null;
 };
 
+type ParamsSnapshot = {
+  dpi: number;
+  toneCount: number;
+  minAreaPx2: number;
+  includeLegend: boolean;
+  mergeAdjacent: boolean;
+  presetName: PresetName | null;
+};
+
 type BatchItemStatus = "pending" | "converting" | "success" | "error";
 
 type BatchItem = {
@@ -124,6 +133,17 @@ export default function App() {
   const [toneCount, setToneCount] = useState(DEFAULT_TONE_COUNT);
   const [dpi, setDpi] = useState(DEFAULT_DPI);
   const [minAreaPx2, setMinAreaPx2] = useState(DEFAULT_MIN_AREA_PX2);
+  // Each number input shows its own draft text rather than binding
+  // directly to the committed number: while `value` is controlled by
+  // `toneCount` etc., clearing the field to retype it would otherwise
+  // have nothing to display until a full new number parses, and
+  // `Number("")` is `0` (not `NaN`), so a fully-cleared field would
+  // silently commit `0`. These stay in sync with the committed values
+  // via the effect below, including when undo/redo or importing/
+  // opening a project changes them programmatically.
+  const [toneCountText, setToneCountText] = useState(String(DEFAULT_TONE_COUNT));
+  const [dpiText, setDpiText] = useState(String(DEFAULT_DPI));
+  const [minAreaText, setMinAreaText] = useState(String(DEFAULT_MIN_AREA_PX2));
   const [includeLegend, setIncludeLegend] = useState(false);
   const [mergeAdjacent, setMergeAdjacent] = useState(false);
   const [svg, setSvg] = useState<string | null>(null);
@@ -139,6 +159,96 @@ export default function App() {
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [batchItems, setBatchItems] = useState<BatchItem[]>([]);
   const [batchRunning, setBatchRunning] = useState(false);
+  const [paramsHistory, setParamsHistory] = useState<{
+    past: ParamsSnapshot[];
+    future: ParamsSnapshot[];
+  }>({ past: [], future: [] });
+
+  function currentParamsSnapshot(): ParamsSnapshot {
+    return { dpi, toneCount, minAreaPx2, includeLegend, mergeAdjacent, presetName };
+  }
+
+  function applyParamsSnapshot(snapshot: ParamsSnapshot) {
+    setDpi(snapshot.dpi);
+    setToneCount(snapshot.toneCount);
+    setMinAreaPx2(snapshot.minAreaPx2);
+    setIncludeLegend(snapshot.includeLegend);
+    setMergeAdjacent(snapshot.mergeAdjacent);
+    setPresetName(snapshot.presetName);
+  }
+
+  /**
+   * Records the current parameters as an undo point, then applies
+   * `next`. Every user-initiated parameter change (manual edits,
+   * applying a preset) goes through this — importing an image or
+   * opening a project instead starts a fresh editing session (see
+   * `resetParamsHistory`), since undoing into a different image's
+   * parameter history wouldn't make sense.
+   */
+  function commitParamsChange(next: ParamsSnapshot) {
+    setParamsHistory((history) => ({
+      past: [...history.past, currentParamsSnapshot()],
+      future: [],
+    }));
+    applyParamsSnapshot(next);
+  }
+
+  function resetParamsHistory() {
+    setParamsHistory({ past: [], future: [] });
+  }
+
+  function handleUndo() {
+    if (paramsHistory.past.length === 0) {
+      return;
+    }
+    const previous = paramsHistory.past[paramsHistory.past.length - 1];
+    setParamsHistory({
+      past: paramsHistory.past.slice(0, -1),
+      future: [currentParamsSnapshot(), ...paramsHistory.future],
+    });
+    applyParamsSnapshot(previous);
+  }
+
+  function handleRedo() {
+    if (paramsHistory.future.length === 0) {
+      return;
+    }
+    const [next, ...rest] = paramsHistory.future;
+    setParamsHistory({
+      past: [...paramsHistory.past, currentParamsSnapshot()],
+      future: rest,
+    });
+    applyParamsSnapshot(next);
+  }
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "z") {
+        return;
+      }
+      event.preventDefault();
+      if (event.shiftKey) {
+        handleRedo();
+      } else {
+        handleUndo();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  });
+
+  useEffect(() => {
+    setToneCountText(String(toneCount));
+  }, [toneCount]);
+
+  useEffect(() => {
+    setDpiText(String(dpi));
+  }, [dpi]);
+
+  useEffect(() => {
+    setMinAreaText(String(minAreaPx2));
+  }, [minAreaPx2]);
 
   useEffect(() => {
     if (!svg) {
@@ -186,6 +296,7 @@ export default function App() {
       });
       applyConversionResult(result);
       setPresetName(null);
+      resetParamsHistory();
       setHasSourceImage(true);
       setSourceFileName(path.split(/[/\\]/).pop() ?? path);
       setStatus({ kind: "converted" });
@@ -219,11 +330,14 @@ export default function App() {
   }
 
   function applyPreset(preset: Preset) {
-    setToneCount(preset.toneCount);
-    setMinAreaPx2(preset.minAreaPx2);
-    setIncludeLegend(preset.includeLegend);
-    setMergeAdjacent(preset.mergeAdjacent);
-    setPresetName(preset.name);
+    commitParamsChange({
+      dpi,
+      toneCount: preset.toneCount,
+      minAreaPx2: preset.minAreaPx2,
+      includeLegend: preset.includeLegend,
+      mergeAdjacent: preset.mergeAdjacent,
+      presetName: preset.name,
+    });
   }
 
   async function handleExport() {
@@ -284,12 +398,8 @@ export default function App() {
     setStatus({ kind: "openingProject" });
     try {
       const project = await invoke<OpenedProject>("open_project", { path });
-      setDpi(project.params.dpi);
-      setToneCount(project.params.toneCount);
-      setMinAreaPx2(project.params.minAreaPx2);
-      setIncludeLegend(project.params.includeLegend);
-      setMergeAdjacent(project.params.mergeAdjacent);
-      setPresetName(project.preset);
+      applyParamsSnapshot({ ...project.params, presetName: project.preset });
+      resetParamsHistory();
       setClassification(project.classification);
       setSuggestedPreset(null);
       if (project.result) {
@@ -394,38 +504,50 @@ export default function App() {
     }
   }
 
-  function handleToneCountChange(value: string) {
+  /**
+   * `Number("")` is `0`, not `NaN` — without the blank check below,
+   * clearing a number input mid-edit would silently commit `0` as a
+   * real value (and, with undo history tracking every committed
+   * change, would insert a spurious undo step for it).
+   */
+  function parseNumberInput(value: string): number | null {
+    if (value.trim() === "") {
+      return null;
+    }
     const next = Number(value);
-    if (!Number.isNaN(next)) {
-      setToneCount(next);
-      setPresetName(null);
+    return Number.isNaN(next) ? null : next;
+  }
+
+  function handleToneCountChange(value: string) {
+    setToneCountText(value);
+    const next = parseNumberInput(value);
+    if (next !== null && next !== toneCount) {
+      commitParamsChange({ ...currentParamsSnapshot(), toneCount: next, presetName: null });
     }
   }
 
   function handleDpiChange(value: string) {
-    const next = Number(value);
-    if (!Number.isNaN(next)) {
-      setDpi(next);
-      setPresetName(null);
+    setDpiText(value);
+    const next = parseNumberInput(value);
+    if (next !== null && next !== dpi) {
+      commitParamsChange({ ...currentParamsSnapshot(), dpi: next, presetName: null });
     }
   }
 
   function handleMinAreaChange(value: string) {
-    const next = Number(value);
-    if (!Number.isNaN(next)) {
-      setMinAreaPx2(next);
-      setPresetName(null);
+    setMinAreaText(value);
+    const next = parseNumberInput(value);
+    if (next !== null && next !== minAreaPx2) {
+      commitParamsChange({ ...currentParamsSnapshot(), minAreaPx2: next, presetName: null });
     }
   }
 
   function handleIncludeLegendChange(checked: boolean) {
-    setIncludeLegend(checked);
-    setPresetName(null);
+    commitParamsChange({ ...currentParamsSnapshot(), includeLegend: checked, presetName: null });
   }
 
   function handleMergeAdjacentChange(checked: boolean) {
-    setMergeAdjacent(checked);
-    setPresetName(null);
+    commitParamsChange({ ...currentParamsSnapshot(), mergeAdjacent: checked, presetName: null });
   }
 
   const batchCompletedCount = batchItems.filter(
@@ -466,7 +588,7 @@ export default function App() {
           type="number"
           min={MIN_TONE_COUNT}
           max={MAX_TONE_COUNT}
-          value={toneCount}
+          value={toneCountText}
           onChange={(event) => handleToneCountChange(event.target.value)}
         />
 
@@ -475,7 +597,7 @@ export default function App() {
           id="dpi"
           type="number"
           min={1}
-          value={dpi}
+          value={dpiText}
           onChange={(event) => handleDpiChange(event.target.value)}
         />
 
@@ -484,7 +606,7 @@ export default function App() {
           id="min-area"
           type="number"
           min={1}
-          value={minAreaPx2}
+          value={minAreaText}
           onChange={(event) => handleMinAreaChange(event.target.value)}
         />
 
@@ -504,6 +626,21 @@ export default function App() {
           onChange={(event) => handleMergeAdjacentChange(event.target.checked)}
         />
       </div>
+
+      <button
+        type="button"
+        onClick={handleUndo}
+        disabled={paramsHistory.past.length === 0}
+      >
+        {t("undo.button")}
+      </button>
+      <button
+        type="button"
+        onClick={handleRedo}
+        disabled={paramsHistory.future.length === 0}
+      >
+        {t("redo.button")}
+      </button>
 
       <button type="button" onClick={() => void handleImport()}>
         {t("import.button")}
