@@ -12,6 +12,8 @@ members = [
     "crates/presets",
     "crates/project",
     "crates/settings",
+    "crates/pipeline",
+    "crates/cli",
 ]
 
 [workspace.package]
@@ -32,8 +34,10 @@ laserprep-svggen = { path = "crates/svggen" }
 laserprep-presets = { path = "crates/presets" }
 laserprep-project = { path = "crates/project" }
 laserprep-settings = { path = "crates/settings" }
+laserprep-pipeline = { path = "crates/pipeline" }
 
-image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "bmp", "gif", "tiff", "webp"] }
+clap = { version = "4", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 anyhow = "1"

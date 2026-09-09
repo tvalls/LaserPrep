@@ -1,0 +1,23 @@
+[package]
+name = "laserprep-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "laser-vector: command-line front end for the LaserPrep conversion pipeline (docs/roadmap.md Phase 7)."
+
+[[bin]]
+name = "laser-vector"
+path = "src/main.rs"
+
+[dependencies]
+laserprep-pipeline.workspace = true
+laserprep-presets.workspace = true
+laserprep-domain.workspace = true
+laserprep-imaging.workspace = true
+clap.workspace = true
+
+[dev-dependencies]
+image.workspace = true
+tempfile = "3"

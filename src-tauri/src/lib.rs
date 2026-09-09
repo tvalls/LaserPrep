@@ -4,7 +4,6 @@
 //! directly. See `docs/architecture.md`.
 
 mod commands;
-mod pipeline;
 
 use commands::{DecodedSourceState, SettingsState, SourceImageState};
 use laserprep_settings::SettingsStore;

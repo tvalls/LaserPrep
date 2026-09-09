@@ -47,6 +47,19 @@ Produces MSI and NSIS installers under `src-tauri/target/release/bundle/`.
 The build is unsigned (see `docs/adr/0006-code-signing-deferred.md`); a
 locally built installer will trigger a Windows SmartScreen warning.
 
+## Building and running the CLI
+
+`crates/cli` (binary name `laser-vector`) is pure Rust with no Tauri/
+Node dependency, so it builds and runs on any platform Rust targets —
+not just Windows:
+
+```powershell
+cargo run -p laserprep-cli -- convert input.png --preset photo --output output.svg
+cargo build -p laserprep-cli --release   # target/release/laser-vector[.exe]
+```
+
+See `README.md`'s "Command-line interface" section for usage.
+
 ## Formatting and linting
 
 ```powershell

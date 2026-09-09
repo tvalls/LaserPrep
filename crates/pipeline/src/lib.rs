@@ -5,6 +5,10 @@
 //! `crates/analysis`, `crates/quantize`, `crates/vectorize`, and
 //! `crates/svggen`. Contains no algorithms of its own — see
 //! `docs/architecture.md` ("UI nunca acoplada aos algoritmos").
+//!
+//! A standalone crate (not part of `src-tauri`) so the conversion core
+//! is usable and testable without the desktop UI (CLAUDE.md Section 5)
+//! — both the Tauri app and `crates/cli` depend on it.
 
 use laserprep_analysis::{Classification, analyze, classify};
 use laserprep_domain::{ToneCount, ToneCountError};
@@ -37,8 +41,8 @@ pub enum PipelineError {
 }
 
 /// A generated SVG document plus its [`ValidationReport`] and
-/// heuristic [`Classification`], returned together so the UI never
-/// has to re-derive validation inputs (width/height/tone count)
+/// heuristic [`Classification`], returned together so callers never
+/// have to re-derive validation inputs (width/height/tone count)
 /// separately from the conversion call that produced them.
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -47,14 +51,14 @@ pub struct ConversionResult {
     pub validation: ValidationReport,
     pub classification: Classification,
     /// The preset (CLAUDE.md Section 12) `laserprep_presets` suggests
-    /// for `classification.category` — a starting point the UI can
+    /// for `classification.category` — a starting point a caller can
     /// offer to apply, not a decision this pipeline makes for the user.
     pub suggested_preset: Preset,
     /// How much inter-path travel distance the generated document's
     /// path order costs relative to the greedy-optimal order for the
     /// same paths (CLAUDE.md Section 8, `docs/roadmap.md` Phase 5).
     /// Computed per tone layer and combined, regardless of whether
-    /// `order_paths` was requested — so the UI can show "already
+    /// `order_paths` was requested — so a caller can show "already
     /// optimal" or "N% of optimal, reorder to improve" either way.
     pub optimization_score: LaserOptimizationScore,
 }
@@ -63,10 +67,9 @@ pub struct ConversionResult {
 /// the pipeline that depends only on the source image bytes, not on
 /// any conversion parameter (tone count, minimum area, legend, merge
 /// adjacent). Callers that reconvert the same image with new
-/// parameters (the UI's Reconvert action, undo/redo) can decode and
-/// classify once and reuse this across calls to
-/// [`convert_decoded_to_svg`] instead of repeating that work — see
-/// `commands::DecodedSourceCache`.
+/// parameters (the desktop UI's Reconvert action, undo/redo) can
+/// decode and classify once and reuse this across calls to
+/// [`convert_decoded_to_svg`] instead of repeating that work.
 pub struct DecodedSource {
     pub image: RgbImage,
     pub classification: Classification,
@@ -154,6 +157,31 @@ pub fn convert_decoded_to_svg(
     })
 }
 
+/// Decodes, classifies, and converts `bytes` in one call — a
+/// convenience for callers (such as `crates/cli`) that have no reason
+/// to cache the decoded/classified intermediate the way the desktop
+/// UI does across Reconvert/undo/redo.
+pub fn convert_bytes_to_svg(
+    bytes: &[u8],
+    dpi: f64,
+    tone_count: u8,
+    min_area_px2: u32,
+    include_legend: bool,
+    merge_adjacent: bool,
+    order_paths: bool,
+) -> Result<ConversionResult, PipelineError> {
+    let source = decode_and_classify(bytes)?;
+    convert_decoded_to_svg(
+        &source,
+        dpi,
+        tone_count,
+        min_area_px2,
+        include_legend,
+        merge_adjacent,
+        order_paths,
+    )
+}
+
 /// Writes `svg` to `path`, overwriting any existing file.
 pub fn save_svg_to_file(path: &Path, svg: &str) -> Result<(), PipelineError> {
     std::fs::write(path, svg).map_err(PipelineError::WriteFile)
@@ -165,14 +193,6 @@ mod tests {
     use image::{ImageBuffer, Rgb};
     use std::io::Cursor;
 
-    /// Decodes, classifies, and converts `bytes` in one call — what
-    /// `pipeline::convert_bytes_to_svg` used to do before decode/
-    /// classify and the parameter-dependent stages were split apart
-    /// for `commands::DecodedSourceState` to cache the former. Kept
-    /// test-only since production callers now have a real reason to
-    /// call the two steps separately (`commands.rs`), and a `pub`
-    /// wrapper with no other caller is exactly the dead code clippy's
-    /// `-D warnings` (rightly) rejects.
     fn convert(
         bytes: &[u8],
         dpi: f64,
@@ -181,9 +201,8 @@ mod tests {
         include_legend: bool,
         merge_adjacent: bool,
     ) -> Result<ConversionResult, PipelineError> {
-        let source = decode_and_classify(bytes)?;
-        convert_decoded_to_svg(
-            &source,
+        convert_bytes_to_svg(
+            bytes,
             dpi,
             tone_count,
             min_area_px2,

@@ -63,7 +63,11 @@ pub enum ImagingError {
 
 /// Decodes `bytes` and downscales it to fit within [`MAX_DIMENSION`]
 /// if needed. The image format is auto-detected from its content, not
-/// from a file name or extension.
+/// from a file name or extension. Supported formats are determined by
+/// the `image` crate features enabled in the workspace `Cargo.toml`
+/// (currently PNG, JPEG, BMP, GIF, TIFF, and WebP) — adding another
+/// decoder the `image` crate already supports is a one-line feature
+/// addition there, not a change to this function.
 fn decode_and_resize(bytes: &[u8]) -> Result<DynamicImage, ImagingError> {
     let decoded = image::load_from_memory(bytes)?;
     let (width, height) = decoded.dimensions();
@@ -117,6 +121,10 @@ pub fn guess_mime_type(bytes: &[u8]) -> Option<&'static str> {
     match image::guess_format(bytes).ok()? {
         image::ImageFormat::Png => Some("image/png"),
         image::ImageFormat::Jpeg => Some("image/jpeg"),
+        image::ImageFormat::Bmp => Some("image/bmp"),
+        image::ImageFormat::Gif => Some("image/gif"),
+        image::ImageFormat::Tiff => Some("image/tiff"),
+        image::ImageFormat::WebP => Some("image/webp"),
         _ => None,
     }
 }
@@ -194,6 +202,32 @@ mod tests {
     #[test]
     fn guesses_no_mime_type_for_unrecognized_bytes() {
         assert_eq!(guess_mime_type(&[1, 2, 3, 4]), None);
+    }
+
+    fn encode_bmp(pixels: &[[u8; 3]], width: u32, height: u32) -> Vec<u8> {
+        let mut buffer = ImageBuffer::<Rgb<u8>, Vec<u8>>::new(width, height);
+        for (index, pixel) in pixels.iter().enumerate() {
+            let x = index as u32 % width;
+            let y = index as u32 / width;
+            buffer.put_pixel(x, y, Rgb(*pixel));
+        }
+
+        let mut bytes = Vec::new();
+        buffer
+            .write_to(&mut Cursor::new(&mut bytes), image::ImageFormat::Bmp)
+            .expect("encoding a synthetic test BMP must succeed");
+        bytes
+    }
+
+    #[test]
+    fn decodes_formats_beyond_png_and_jpeg() {
+        let bytes = encode_bmp(&[[10, 20, 30], [200, 100, 50]], 2, 1);
+        let decoded = load_rgb_from_bytes(&bytes).unwrap();
+
+        assert_eq!(decoded.width, 2);
+        assert_eq!(decoded.height, 1);
+        assert_eq!(decoded.samples, vec![[10, 20, 30], [200, 100, 50]]);
+        assert_eq!(guess_mime_type(&bytes), Some("image/bmp"));
     }
 
     #[test]
