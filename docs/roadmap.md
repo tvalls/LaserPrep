@@ -25,9 +25,12 @@ application is left in a partially-fake state (see CLAUDE.md Section 13).
   this stage not to need their own caching yet)*
 - **Phase 5** — LightBurn path-ordering optimization, Laser Optimization
   Score, advanced preview (before/after, per-tone, LightBurn preview).
-  *(current)*
+  *(done — "LightBurn preview" is scoped as adopting LightBurn's own
+  layer-color convention (distinct stroke colors per tone) for visual
+  clarity in our own preview, not a literal emulation of LightBurn's
+  renderer)*
 - **Phase 6** — Auto-update, bug reporting, crash reporting, full release
-  pipeline.
+  pipeline. *(current)*
 - **Phase 7** — CLI (`laser-vector convert input.jpg --preset portrait
   --tones 5 --output output.svg`), extensibility for new
   pipelines/presets/algorithms, additional formats/platforms.
