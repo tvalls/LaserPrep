@@ -6,7 +6,7 @@
 mod commands;
 mod pipeline;
 
-use commands::{DecodedSourceState, SourceImageState};
+use commands::{DecodedSourceState, SettingsState, SourceImageState};
 use laserprep_settings::SettingsStore;
 use tauri::Manager;
 
@@ -18,6 +18,8 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .invoke_handler(tauri::generate_handler![
             commands::convert_image_file,
             commands::convert_current_source,
@@ -26,6 +28,8 @@ pub fn run() {
             commands::save_project,
             commands::open_project,
             commands::current_source_image_data_url,
+            commands::get_settings,
+            commands::save_settings,
         ])
         .setup(|app| {
             app.manage(SourceImageState::default());
@@ -48,7 +52,7 @@ pub fn run() {
             tracing::info!(language = %settings.ui.language, "LaserPrep starting");
 
             app.manage(store);
-            app.manage(settings);
+            app.manage(SettingsState::new(settings));
             Ok(())
         })
         .run(tauri::generate_context!())

@@ -55,5 +55,18 @@
   "preview.original.alt": "原始图片",
   "preview.generated.alt": "生成的 SVG 预览",
   "preview.toneLabel": "色调 {{tone}}",
-  "preview.colorizeByLayer.label": "LightBurn 风格图层配色"
+  "preview.colorizeByLayer.label": "LightBurn 风格图层配色",
+  "update.heading": "更新",
+  "update.currentVersion": "版本 {{version}}",
+  "update.checkButton": "检查更新",
+  "update.checking": "正在检查更新…",
+  "update.upToDate": "已是最新版本。",
+  "update.checkFailed": "无法检查更新。",
+  "update.downloading": "正在下载更新…",
+  "update.checkOnStartup.label": "启动时检查更新",
+  "update.available.title": "有可用更新",
+  "update.available.question": "版本 {{version}} 现已可用。是否立即更新？",
+  "update.updateNowButton": "立即更新",
+  "update.laterButton": "以后再说",
+  "update.skipVersion.label": "不再提示此版本"
 }

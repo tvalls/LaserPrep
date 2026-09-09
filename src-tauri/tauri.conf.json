@@ -27,10 +27,19 @@
     "active": true,
     "targets": ["msi", "nsis"],
     "icon": ["icons/icon.ico", "icons/icon.png"],
+    "createUpdaterArtifacts": true,
     "windows": {
       "webviewInstallMode": {
         "type": "downloadBootstrapper"
       }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEJDNzA5QTczMDYzNzFBMjUKUldRbEdqY0djNXB3dktWZlNlVVNiZVQwTk5jUXJqaHh1aVdNZm9SMTRDalVSU2djZk1YQitzMlUK",
+      "endpoints": [
+        "https://github.com/tvalls/LaserPrep/releases/latest/download/latest.json"
+      ]
     }
   }
 }
