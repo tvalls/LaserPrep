@@ -13,7 +13,7 @@
 //! is deferred until there is a concrete need for it.
 
 /// The result of validating one generated SVG document.
-#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ValidationReport {
     pub width: u32,
@@ -25,7 +25,7 @@ pub struct ValidationReport {
     pub degenerate_paths: usize,
     pub total_nodes: usize,
     pub invalid_coordinate_paths: usize,
-    pub lightburn_incompatibilities: Vec<&'static str>,
+    pub lightburn_incompatibilities: Vec<String>,
 }
 
 impl ValidationReport {
@@ -98,7 +98,7 @@ pub fn validate(svg: &str, width: u32, height: u32, tone_count: u8) -> Validatio
 
     for marker in INCOMPATIBLE_MARKERS {
         if svg.contains(marker) {
-            report.lightburn_incompatibilities.push(marker);
+            report.lightburn_incompatibilities.push(marker.to_string());
         }
     }
 
@@ -259,7 +259,11 @@ mod tests {
         let report = validate(&svg, 10, 10, 2);
 
         assert!(!report.is_lightburn_compatible());
-        assert!(report.lightburn_incompatibilities.contains(&"<filter"));
+        assert!(
+            report
+                .lightburn_incompatibilities
+                .contains(&"<filter".to_string())
+        );
     }
 
     #[test]
