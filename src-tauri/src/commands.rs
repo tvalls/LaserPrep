@@ -229,3 +229,24 @@ pub fn open_project(
 
     Ok(opened)
 }
+
+/// The currently loaded source image (from the last [`convert_image_file`]
+/// or [`open_project`] call), as a `data:` URL — the UI's before/after
+/// preview embeds this directly in an `<img>` element rather than
+/// asking Tauri's asset protocol to serve an arbitrary file path.
+/// `SourceImage` already stores its bytes as base64 (CLAUDE.md Section
+/// 12: the `.lvp` format embeds the source image the same way), so
+/// this only needs to sniff a MIME type for the data URL prefix, not
+/// re-encode anything.
+#[tauri::command]
+pub fn current_source_image_data_url(
+    source: State<'_, SourceImageState>,
+) -> Result<String, String> {
+    let source_image = lock_source(&source)?
+        .clone()
+        .ok_or_else(|| "no image has been imported or opened yet".to_string())?;
+    let bytes = source_image.decode().map_err(|err| err.to_string())?;
+    let mime = laserprep_imaging::guess_mime_type(&bytes).unwrap_or("application/octet-stream");
+
+    Ok(format!("data:{mime};base64,{}", source_image.data_base64))
+}

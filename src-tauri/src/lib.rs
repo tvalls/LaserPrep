@@ -25,6 +25,7 @@ pub fn run() {
             commands::save_svg_files,
             commands::save_project,
             commands::open_project,
+            commands::current_source_image_data_url,
         ])
         .setup(|app| {
             app.manage(SourceImageState::default());

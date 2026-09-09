@@ -141,6 +141,54 @@ const BATCH_STATUS_LABEL_KEYS: Record<BatchItemStatus, string> = {
   error: "batch.status.error",
 };
 
+/**
+ * Distinct per-layer colors for the "LightBurn-style" preview mode,
+ * echoing how LightBurn itself distinguishes cut layers by color
+ * rather than literally reproducing its renderer.
+ */
+const LAYER_COLORS = [
+  "#e63946",
+  "#1d4ed8",
+  "#15803d",
+  "#f97316",
+  "#7c3aed",
+  "#0891b2",
+];
+
+/**
+ * Applies per-tone visibility and optional layer coloring to a
+ * generated SVG document, purely by injecting a `<style>` block that
+ * targets the `id="tone-N"` groups every generated document already
+ * has — no need to touch svggen or re-run the pipeline for a preview
+ * change. Browsers apply embedded SVG stylesheets even when the SVG
+ * is only ever used as an `<img>` source, so this works without
+ * inlining the SVG into the page's own DOM. Never used for
+ * export/save — those always use the pristine, unmodified SVG.
+ */
+function buildPreviewSvg(
+  svg: string,
+  toneVisibility: boolean[],
+  colorizeByLayer: boolean,
+): string {
+  const rules = toneVisibility
+    .map((visible, tone) => {
+      if (!visible) {
+        return `#tone-${tone}{display:none}`;
+      }
+      if (colorizeByLayer) {
+        const color = LAYER_COLORS[tone % LAYER_COLORS.length];
+        return `#tone-${tone} path{fill:none;stroke:${color};stroke-width:1px}`;
+      }
+      return null;
+    })
+    .filter((rule): rule is string => rule !== null);
+
+  if (rules.length === 0) {
+    return svg;
+  }
+  return svg.replace(/^(<svg[^>]*>)/, `$1<style>${rules.join("")}</style>`);
+}
+
 export default function App() {
   const { t, i18n } = useTranslation();
   const [toneCount, setToneCount] = useState(DEFAULT_TONE_COUNT);
@@ -172,6 +220,9 @@ export default function App() {
   const [hasSourceImage, setHasSourceImage] = useState(false);
   const [sourceFileName, setSourceFileName] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [originalImageUrl, setOriginalImageUrl] = useState<string | null>(null);
+  const [toneVisibility, setToneVisibility] = useState<boolean[]>([]);
+  const [colorizeByLayer, setColorizeByLayer] = useState(false);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [batchItems, setBatchItems] = useState<BatchItem[]>([]);
   const [batchRunning, setBatchRunning] = useState(false);
@@ -280,16 +331,20 @@ export default function App() {
     setMinAreaText(String(minAreaPx2));
   }, [minAreaPx2]);
 
+  const previewSvg = svg ? buildPreviewSvg(svg, toneVisibility, colorizeByLayer) : null;
+
   useEffect(() => {
-    if (!svg) {
+    if (!previewSvg) {
       setPreviewUrl(null);
       return;
     }
 
-    const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
+    const url = URL.createObjectURL(
+      new Blob([previewSvg], { type: "image/svg+xml" }),
+    );
     setPreviewUrl(url);
     return () => URL.revokeObjectURL(url);
-  }, [svg]);
+  }, [previewSvg]);
 
   function applyConversionResult(result: ConversionResult) {
     setSvg(result.svg);
@@ -297,6 +352,7 @@ export default function App() {
     setClassification(result.classification);
     setSuggestedPreset(result.suggestedPreset);
     setOptimizationScore(result.optimizationScore);
+    setToneVisibility(Array(result.validation.toneCount).fill(true));
   }
 
   function clearConversionResult() {
@@ -305,6 +361,17 @@ export default function App() {
     setClassification(null);
     setSuggestedPreset(null);
     setOptimizationScore(null);
+    setToneVisibility([]);
+  }
+
+  /** Fetches the original (undecoded) source image for the before/after preview. */
+  async function refreshOriginalImagePreview() {
+    try {
+      const dataUrl = await invoke<string>("current_source_image_data_url");
+      setOriginalImageUrl(typeof dataUrl === "string" ? dataUrl : null);
+    } catch {
+      setOriginalImageUrl(null);
+    }
   }
 
   async function handleImport() {
@@ -328,10 +395,12 @@ export default function App() {
       setHasSourceImage(true);
       setSourceFileName(path.split(/[/\\]/).pop() ?? path);
       setStatus({ kind: "converted" });
+      void refreshOriginalImagePreview();
     } catch (error) {
       clearConversionResult();
       setHasSourceImage(false);
       setSourceFileName(null);
+      setOriginalImageUrl(null);
       setStatus({ kind: "error", message: String(error) });
     }
   }
@@ -434,15 +503,19 @@ export default function App() {
         setSvg(project.result.svg);
         setValidation(project.result.validation);
         setOptimizationScore(project.result.optimizationScore);
+        setToneVisibility(Array(project.result.validation.toneCount).fill(true));
       } else {
         setSvg(null);
         setValidation(null);
         setOptimizationScore(null);
+        setToneVisibility([]);
       }
       setHasSourceImage(true);
       setSourceFileName(project.sourceFileName);
       setStatus({ kind: "projectOpened" });
+      void refreshOriginalImagePreview();
     } catch (error) {
+      setOriginalImageUrl(null);
       setStatus({ kind: "error", message: String(error) });
     }
   }
@@ -749,7 +822,50 @@ export default function App() {
         </p>
       )}
 
-      {previewUrl && <img src={previewUrl} alt={t("app.title")} />}
+      {(originalImageUrl || previewUrl) && (
+        <section aria-label={t("preview.heading")}>
+          <h2>{t("preview.heading")}</h2>
+          <div>
+            {originalImageUrl && (
+              <img src={originalImageUrl} alt={t("preview.original.alt")} />
+            )}
+            {previewUrl && (
+              <img src={previewUrl} alt={t("preview.generated.alt")} />
+            )}
+          </div>
+
+          {toneVisibility.length > 0 && (
+            <div>
+              {toneVisibility.map((visible, tone) => (
+                <label key={tone}>
+                  <input
+                    type="checkbox"
+                    checked={visible}
+                    onChange={(event) =>
+                      setToneVisibility((current) =>
+                        current.map((v, i) =>
+                          i === tone ? event.target.checked : v,
+                        ),
+                      )
+                    }
+                  />
+                  {t("preview.toneLabel", { tone })}
+                </label>
+              ))}
+
+              <label htmlFor="colorize-by-layer">
+                {t("preview.colorizeByLayer.label")}
+              </label>
+              <input
+                id="colorize-by-layer"
+                type="checkbox"
+                checked={colorizeByLayer}
+                onChange={(event) => setColorizeByLayer(event.target.checked)}
+              />
+            </div>
+          )}
+        </section>
+      )}
 
       <section aria-label={t("batch.heading")}>
         <h2>{t("batch.heading")}</h2>

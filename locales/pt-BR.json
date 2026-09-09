@@ -50,5 +50,10 @@
   "batch.status.pending": "Pendente",
   "batch.status.converting": "Convertendo…",
   "batch.status.success": "Concluído",
-  "batch.status.error": "Erro: {{message}}"
+  "batch.status.error": "Erro: {{message}}",
+  "preview.heading": "Pré-visualização",
+  "preview.original.alt": "Imagem original",
+  "preview.generated.alt": "Pré-visualização do SVG gerado",
+  "preview.toneLabel": "Tom {{tone}}",
+  "preview.colorizeByLayer.label": "Cores de camada estilo LightBurn"
 }
