@@ -352,3 +352,15 @@ pub fn export_diagnostics(path: String, app: tauri::AppHandle) -> Result<(), Str
 
     std::fs::write(&path, output).map_err(|err| err.to_string())
 }
+
+/// Records a frontend crash (React error boundary) in the same log
+/// file [`export_diagnostics`] reads — otherwise a rendering crash
+/// leaves no trace at all outside the (usually inaccessible, for a
+/// packaged GUI app) devtools console.
+#[tauri::command]
+pub fn log_frontend_error(message: String, stack: Option<String>) {
+    match stack {
+        Some(stack) => tracing::error!(stack = %stack, "frontend error: {message}"),
+        None => tracing::error!("frontend error: {message}"),
+    }
+}

@@ -79,5 +79,7 @@
   "report.environment": "LaserPrep {{version}} — {{os}}/{{arch}}",
   "report.saveButton": "Salvar relatório",
   "report.openIssueButton": "Abrir issue no GitHub",
-  "report.exportLogButton": "Exportar log de diagnóstico"
+  "report.exportLogButton": "Exportar log de diagnóstico",
+  "errorBoundary.title": "Algo deu errado",
+  "errorBoundary.message": "O LaserPrep encontrou um erro inesperado e precisa reiniciar. Nada foi enviado a lugar nenhum — uma nota foi adicionada ao log de diagnóstico local, que você pode exportar em Reportar um problema depois de reiniciar."
 }
