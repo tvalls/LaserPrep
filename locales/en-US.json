@@ -21,6 +21,8 @@
   "minArea.label": "Minimum area (px²)",
   "legend.label": "Include tone legend",
   "mergeAdjacent.label": "Merge adjacent regions",
+  "orderPaths.label": "Order paths (reduce laser travel)",
+  "optimizationScore.summary": "Laser optimization: {{efficiency}}% of optimal travel.",
   "classification.summary": "Detected category: {{category}} ({{confidence}}% confidence).",
   "preset.suggestion": "Suggested preset: {{preset}}.",
   "preset.applyButton": "Apply preset",

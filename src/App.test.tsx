@@ -39,12 +39,19 @@ const photoPreset = {
   mergeAdjacent: false,
 };
 
+const fullOptimizationScore = {
+  travelDistance: 10,
+  optimalTravelDistance: 10,
+  efficiency: 1,
+};
+
 function conversionResult(overrides: Partial<typeof cleanValidation> = {}) {
   return {
     svg: "<svg></svg>",
     validation: { ...cleanValidation, ...overrides },
     classification: { category: "GenericPhoto" as const, confidence: 0.25 },
     suggestedPreset: photoPreset,
+    optimizationScore: fullOptimizationScore,
   };
 }
 
@@ -90,6 +97,7 @@ describe("App", () => {
         minAreaPx2: 16,
         includeLegend: false,
         mergeAdjacent: false,
+        orderPaths: false,
       },
     });
     expect(screen.getByRole("img")).toHaveAttribute(
@@ -98,6 +106,28 @@ describe("App", () => {
     );
     expect(screen.getByRole("button", { name: "Export SVG" })).toBeEnabled();
     expect(screen.getByText("3 paths, 12 nodes.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Laser optimization: 100% of optimal travel."),
+    ).toBeInTheDocument();
+  });
+
+  it("sends orderPaths when the checkbox is enabled", async () => {
+    open.mockResolvedValue("/tmp/photo.png");
+    invoke.mockResolvedValue(conversionResult());
+    const user = userEvent.setup();
+
+    render(<App />);
+    await user.click(
+      screen.getByLabelText("Order paths (reduce laser travel)"),
+    );
+    await user.click(screen.getByRole("button", { name: "Import Image" }));
+
+    expect(invoke).toHaveBeenCalledWith(
+      "convert_image_file",
+      expect.objectContaining({
+        params: expect.objectContaining({ orderPaths: true }),
+      }),
+    );
   });
 
   it("shows the detected content category and confidence", async () => {
@@ -335,6 +365,7 @@ describe("App", () => {
         minAreaPx2: 16,
         includeLegend: false,
         mergeAdjacent: false,
+        orderPaths: false,
       },
     });
     expect(await screen.findByText("7 paths, 12 nodes.")).toBeInTheDocument();
@@ -362,10 +393,15 @@ describe("App", () => {
           minAreaPx2: 16,
           includeLegend: false,
           mergeAdjacent: false,
+          orderPaths: false,
         },
         preset: null,
         classification: { category: "GenericPhoto", confidence: 0.25 },
-        result: { svg: "<svg></svg>", validation: cleanValidation },
+        result: {
+          svg: "<svg></svg>",
+          validation: cleanValidation,
+          optimizationScore: fullOptimizationScore,
+        },
       },
     });
     expect(await screen.findByRole("status")).toHaveTextContent(
@@ -383,10 +419,15 @@ describe("App", () => {
         minAreaPx2: 20,
         includeLegend: true,
         mergeAdjacent: true,
+        orderPaths: true,
       },
       preset: "Logo",
       classification: { category: "Logo", confidence: 0.9 },
-      result: { svg: "<svg></svg>", validation: cleanValidation },
+      result: {
+        svg: "<svg></svg>",
+        validation: cleanValidation,
+        optimizationScore: fullOptimizationScore,
+      },
     });
     const user = userEvent.setup();
 
@@ -404,6 +445,9 @@ describe("App", () => {
     expect(screen.getByLabelText("Minimum area (px²)")).toHaveValue(20);
     expect(screen.getByLabelText("Include tone legend")).toBeChecked();
     expect(screen.getByLabelText("Merge adjacent regions")).toBeChecked();
+    expect(
+      screen.getByLabelText("Order paths (reduce laser travel)"),
+    ).toBeChecked();
     expect(screen.getByRole("img")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Save Project" }),

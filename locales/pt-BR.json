@@ -21,6 +21,8 @@
   "minArea.label": "Área mínima (px²)",
   "legend.label": "Incluir legenda de tons",
   "mergeAdjacent.label": "Unir regiões adjacentes",
+  "orderPaths.label": "Ordenar caminhos (reduzir deslocamento do laser)",
+  "optimizationScore.summary": "Otimização para o laser: {{efficiency}}% do deslocamento ideal.",
   "classification.summary": "Categoria detectada: {{category}} ({{confidence}}% de confiança).",
   "preset.suggestion": "Preset sugerido: {{preset}}.",
   "preset.applyButton": "Aplicar preset",

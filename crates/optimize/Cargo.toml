@@ -10,3 +10,4 @@ description = "Laser path optimization: closing, noise/island removal, merging, 
 [dependencies]
 i_overlay = "8"
 laserprep-vectorize.workspace = true
+serde.workspace = true

@@ -9,7 +9,10 @@
 use laserprep_analysis::{Classification, analyze, classify};
 use laserprep_domain::{ToneCount, ToneCountError};
 use laserprep_imaging::{ImagingError, RgbImage, load_rgb_from_bytes};
-use laserprep_optimize::merge_adjacent_regions;
+use laserprep_optimize::{
+    LaserOptimizationScore, combine_scores, merge_adjacent_regions, order_paths_by_travel_distance,
+    score_path_order,
+};
 use laserprep_presets::{Preset, suggest_preset};
 use laserprep_quantize::{QuantizeError, quantize_linear};
 use laserprep_svggen::{SvgOptions, ValidationReport, validate, vectorized_tones_to_svg};
@@ -47,6 +50,13 @@ pub struct ConversionResult {
     /// for `classification.category` — a starting point the UI can
     /// offer to apply, not a decision this pipeline makes for the user.
     pub suggested_preset: Preset,
+    /// How much inter-path travel distance the generated document's
+    /// path order costs relative to the greedy-optimal order for the
+    /// same paths (CLAUDE.md Section 8, `docs/roadmap.md` Phase 5).
+    /// Computed per tone layer and combined, regardless of whether
+    /// `order_paths` was requested — so the UI can show "already
+    /// optimal" or "N% of optimal, reorder to improve" either way.
+    pub optimization_score: LaserOptimizationScore,
 }
 
 /// A decoded image plus its heuristic [`Classification`] — the part of
@@ -81,7 +91,10 @@ pub fn decode_and_classify(bytes: &[u8]) -> Result<DecodedSource, PipelineError>
 /// 10); `merge_adjacent` applies `laserprep_optimize::merge_adjacent_regions`
 /// per tone (CLAUDE.md Section 8: "Merge Adjacent Regions"), trading
 /// curve fitting for straight-line polygons on the tones it merges
-/// (see `laserprep_vectorize::PolygonShape`).
+/// (see `laserprep_vectorize::PolygonShape`); `order_paths` applies
+/// `laserprep_optimize::order_paths_by_travel_distance` per tone
+/// (CLAUDE.md Section 8: "Path Ordering", `docs/roadmap.md` Phase 5)
+/// to reduce laser travel between cuts within each tone layer.
 pub fn convert_decoded_to_svg(
     source: &DecodedSource,
     dpi: f64,
@@ -89,6 +102,7 @@ pub fn convert_decoded_to_svg(
     min_area_px2: u32,
     include_legend: bool,
     merge_adjacent: bool,
+    order_paths: bool,
 ) -> Result<ConversionResult, PipelineError> {
     let tone_count = ToneCount::new(tone_count)?;
     let image = source.image.to_luminance();
@@ -96,19 +110,27 @@ pub fn convert_decoded_to_svg(
 
     let vectorizer = VtracerVectorizer::new(min_area_px2);
     let paths_by_tone: Vec<Vec<VectorPath>> = (0..tone_count.get())
-        .map(|tone| {
+        .map(|tone| -> Result<Vec<VectorPath>, VectorizeError> {
             let mask = BinaryMask::from_tone_map(&tone_map, tone);
-            if merge_adjacent {
+            let traced = if merge_adjacent {
                 let shapes = vectorizer.trace_polygons(&mask)?;
-                Ok(merge_adjacent_regions(&shapes)
+                merge_adjacent_regions(&shapes)
                     .iter()
                     .map(polygon_shape_to_vector_path)
-                    .collect())
+                    .collect()
             } else {
-                vectorizer.trace(&mask)
-            }
+                vectorizer.trace(&mask)?
+            };
+            Ok(if order_paths {
+                order_paths_by_travel_distance(&traced)
+            } else {
+                traced
+            })
         })
         .collect::<Result<_, _>>()?;
+
+    let optimization_score =
+        combine_scores(paths_by_tone.iter().map(|paths| score_path_order(paths)));
 
     let svg = vectorized_tones_to_svg(
         tone_map.width,
@@ -128,6 +150,7 @@ pub fn convert_decoded_to_svg(
         validation,
         classification: source.classification,
         suggested_preset,
+        optimization_score,
     })
 }
 
@@ -166,6 +189,7 @@ mod tests {
             min_area_px2,
             include_legend,
             merge_adjacent,
+            false,
         )
     }
 
@@ -333,5 +357,68 @@ mod tests {
         save_svg_to_file(&output_path, &result.svg).unwrap();
 
         assert_eq!(std::fs::read_to_string(&output_path).unwrap(), result.svg);
+    }
+
+    /// A 60x60 image with three well-separated 8x8 dark squares on a
+    /// light background: tone 0 (dark) traces into three disjoint
+    /// paths with real travel distance between them to order, unlike
+    /// `synthetic_png`'s single square.
+    fn scattered_squares_png() -> Vec<u8> {
+        let mut buffer = ImageBuffer::<Rgb<u8>, Vec<u8>>::from_pixel(60, 60, Rgb([255, 255, 255]));
+        for (left, top) in [(2, 2), (2, 50), (50, 2)] {
+            for y in top..top + 8 {
+                for x in left..left + 8 {
+                    buffer.put_pixel(x, y, Rgb([0, 0, 0]));
+                }
+            }
+        }
+
+        let mut bytes = Vec::new();
+        buffer
+            .write_to(&mut Cursor::new(&mut bytes), image::ImageFormat::Png)
+            .unwrap();
+        bytes
+    }
+
+    #[test]
+    fn includes_an_optimization_score_within_bounds() {
+        let result = convert(
+            &synthetic_png(),
+            96.0,
+            2,
+            laserprep_vectorize::DEFAULT_MIN_AREA_PX2,
+            false,
+            false,
+        )
+        .unwrap();
+
+        assert!((0.0..=1.0).contains(&result.optimization_score.efficiency));
+        assert!(result.optimization_score.travel_distance >= 0.0);
+    }
+
+    #[test]
+    fn ordering_paths_reaches_full_optimization_efficiency() {
+        let source = decode_and_classify(&scattered_squares_png()).unwrap();
+
+        let result = convert_decoded_to_svg(
+            &source,
+            96.0,
+            2,
+            laserprep_vectorize::DEFAULT_MIN_AREA_PX2,
+            false,
+            false,
+            true,
+        )
+        .unwrap();
+
+        assert_eq!(
+            result.validation.total_paths, 4,
+            "3 dark squares + 1 background region"
+        );
+        assert!(
+            result.optimization_score.efficiency > 0.999,
+            "expected near-1.0 efficiency after ordering, got {}",
+            result.optimization_score.efficiency
+        );
     }
 }

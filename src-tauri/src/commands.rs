@@ -78,6 +78,7 @@ pub fn convert_image_file(
         params.min_area_px2,
         params.include_legend,
         params.merge_adjacent,
+        params.order_paths,
     )
     .map_err(|err| err.to_string())
 }
@@ -102,6 +103,7 @@ pub fn convert_current_source(
         params.min_area_px2,
         params.include_legend,
         params.merge_adjacent,
+        params.order_paths,
     )
     .map_err(|err| err.to_string())
 }

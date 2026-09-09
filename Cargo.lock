@@ -1973,6 +1973,7 @@ version = "0.1.0"
 dependencies = [
  "i_overlay",
  "laserprep-vectorize",
+ "serde",
 ]
 
 [[package]]
@@ -1992,6 +1993,7 @@ dependencies = [
  "chrono",
  "laserprep-analysis",
  "laserprep-domain",
+ "laserprep-optimize",
  "laserprep-presets",
  "laserprep-svggen",
  "serde",

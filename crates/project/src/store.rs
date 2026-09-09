@@ -86,6 +86,7 @@ mod tests {
             min_area_px2: 16,
             include_legend: true,
             merge_adjacent: false,
+            order_paths: false,
         };
         ProjectFile::new(source, params, None)
     }
@@ -159,6 +160,11 @@ mod tests {
         project.result = Some(crate::model::ProjectResult {
             svg: "<svg></svg>".to_string(),
             validation: laserprep_svggen::validate("<svg></svg>", 10, 10, 5),
+            optimization_score: Some(laserprep_optimize::LaserOptimizationScore {
+                travel_distance: 0.0,
+                optimal_travel_distance: 0.0,
+                efficiency: 1.0,
+            }),
         });
 
         store.save(&project).expect("save should succeed");

@@ -21,6 +21,8 @@
   "minArea.label": "Área mínima (px²)",
   "legend.label": "Incluir leyenda de tonos",
   "mergeAdjacent.label": "Unir regiones adyacentes",
+  "orderPaths.label": "Ordenar trazados (reducir desplazamiento del láser)",
+  "optimizationScore.summary": "Optimización láser: {{efficiency}}% del desplazamiento óptimo.",
   "classification.summary": "Categoría detectada: {{category}} ({{confidence}}% de confianza).",
   "preset.suggestion": "Preajuste sugerido: {{preset}}.",
   "preset.applyButton": "Aplicar preajuste",
