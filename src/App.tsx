@@ -168,6 +168,11 @@ export default function App() {
     return { dpi, toneCount, minAreaPx2, includeLegend, mergeAdjacent, presetName };
   }
 
+  /** The subset of `currentParamsSnapshot` the backend's `ConversionParams` expects (no `presetName`). */
+  function currentParams(): ProjectParams {
+    return { dpi, toneCount, minAreaPx2, includeLegend, mergeAdjacent };
+  }
+
   function applyParamsSnapshot(snapshot: ParamsSnapshot) {
     setDpi(snapshot.dpi);
     setToneCount(snapshot.toneCount);
@@ -288,11 +293,7 @@ export default function App() {
     try {
       const result = await invoke<ConversionResult>("convert_image_file", {
         path,
-        dpi,
-        toneCount,
-        minAreaPx2,
-        includeLegend,
-        mergeAdjacent,
+        params: currentParams(),
       });
       applyConversionResult(result);
       setPresetName(null);
@@ -316,11 +317,7 @@ export default function App() {
     setStatus({ kind: "converting" });
     try {
       const result = await invoke<ConversionResult>("convert_current_source", {
-        dpi,
-        toneCount,
-        minAreaPx2,
-        includeLegend,
-        mergeAdjacent,
+        params: currentParams(),
       });
       applyConversionResult(result);
       setStatus({ kind: "converted" });
@@ -454,11 +451,7 @@ export default function App() {
       try {
         const result = await invoke<ConversionResult>("convert_image_file", {
           path,
-          dpi,
-          toneCount,
-          minAreaPx2,
-          includeLegend,
-          mergeAdjacent,
+          params: currentParams(),
         });
         setBatchItems((items) =>
           items.map((item, i) =>

@@ -10,18 +10,33 @@
 //! imported file or a reopened `.lvp` project without the frontend
 //! having to shuttle the (potentially large) original image bytes back
 //! and forth over IPC just to hold onto them.
+//!
+//! Alongside it, [`DecodedSourceState`] caches the *decoded and
+//! classified* form of that same image (`pipeline::DecodedSource`):
+//! decoding and heuristic classification depend only on the source
+//! bytes, never on conversion parameters, so re-running them on every
+//! [`convert_current_source`] call (as the UI's Reconvert action and
+//! undo/redo naturally do while the user tweaks tone count, minimum
+//! area, etc.) would repeat work whose result cannot have changed.
+//! Kept in sync with [`SourceImageState`] at the same two entry
+//! points (import, open project) so the two are never out of step.
 
-use crate::pipeline::{self, ConversionResult};
+use crate::pipeline::{self, ConversionResult, DecodedSource};
 use laserprep_analysis::Classification;
 use laserprep_presets::PresetName;
 use laserprep_project::{ConversionParams, ProjectFile, ProjectResult, ProjectStore, SourceImage};
 use std::path::Path;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tauri::State;
 
 /// The source image behind the conversion currently shown in the UI,
 /// if any. `None` until an image is imported or a project is opened.
 pub type SourceImageState = Mutex<Option<SourceImage>>;
+
+/// The decoded/classified form of the same image `SourceImageState`
+/// currently holds. `Arc` so reading it for a conversion is a cheap
+/// reference-count bump rather than a clone of the full pixel buffer.
+pub type DecodedSourceState = Mutex<Option<Arc<DecodedSource>>>;
 
 fn lock_source<'a>(
     state: &'a State<'_, SourceImageState>,
@@ -31,15 +46,20 @@ fn lock_source<'a>(
         .map_err(|_| "internal state lock was poisoned".to_string())
 }
 
+fn lock_decoded<'a>(
+    state: &'a State<'_, DecodedSourceState>,
+) -> Result<std::sync::MutexGuard<'a, Option<Arc<DecodedSource>>>, String> {
+    state
+        .lock()
+        .map_err(|_| "internal state lock was poisoned".to_string())
+}
+
 #[tauri::command]
 pub fn convert_image_file(
     path: String,
-    dpi: f64,
-    tone_count: u8,
-    min_area_px2: u32,
-    include_legend: bool,
-    merge_adjacent: bool,
+    params: ConversionParams,
     source: State<'_, SourceImageState>,
+    decoded: State<'_, DecodedSourceState>,
 ) -> Result<ConversionResult, String> {
     let bytes = std::fs::read(&path).map_err(|err| err.to_string())?;
     let file_name = Path::new(&path)
@@ -47,41 +67,41 @@ pub fn convert_image_file(
         .map(|name| name.to_string_lossy().to_string());
     *lock_source(&source)? = Some(SourceImage::from_bytes(file_name, &bytes));
 
-    pipeline::convert_bytes_to_svg(
-        &bytes,
-        dpi,
-        tone_count,
-        min_area_px2,
-        include_legend,
-        merge_adjacent,
+    let decoded_source =
+        Arc::new(pipeline::decode_and_classify(&bytes).map_err(|err| err.to_string())?);
+    *lock_decoded(&decoded)? = Some(Arc::clone(&decoded_source));
+
+    pipeline::convert_decoded_to_svg(
+        &decoded_source,
+        params.dpi,
+        params.tone_count,
+        params.min_area_px2,
+        params.include_legend,
+        params.merge_adjacent,
     )
     .map_err(|err| err.to_string())
 }
 
 /// Reconverts the currently loaded source image (from the last
 /// [`convert_image_file`] or [`open_project`] call) with new
-/// parameters, without requiring the user to re-pick a file.
+/// parameters, without requiring the user to re-pick a file or
+/// re-decoding/re-classifying an image that hasn't changed.
 #[tauri::command]
 pub fn convert_current_source(
-    dpi: f64,
-    tone_count: u8,
-    min_area_px2: u32,
-    include_legend: bool,
-    merge_adjacent: bool,
-    source: State<'_, SourceImageState>,
+    params: ConversionParams,
+    decoded: State<'_, DecodedSourceState>,
 ) -> Result<ConversionResult, String> {
-    let source_image = lock_source(&source)?
+    let decoded_source = lock_decoded(&decoded)?
         .clone()
         .ok_or_else(|| "no image has been imported or opened yet".to_string())?;
-    let bytes = source_image.decode().map_err(|err| err.to_string())?;
 
-    pipeline::convert_bytes_to_svg(
-        &bytes,
-        dpi,
-        tone_count,
-        min_area_px2,
-        include_legend,
-        merge_adjacent,
+    pipeline::convert_decoded_to_svg(
+        &decoded_source,
+        params.dpi,
+        params.tone_count,
+        params.min_area_px2,
+        params.include_legend,
+        params.merge_adjacent,
     )
     .map_err(|err| err.to_string())
 }
@@ -182,6 +202,7 @@ pub struct OpenedProject {
 pub fn open_project(
     path: String,
     source: State<'_, SourceImageState>,
+    decoded: State<'_, DecodedSourceState>,
 ) -> Result<OpenedProject, String> {
     let project = ProjectStore::new(&path)
         .load()
@@ -195,6 +216,14 @@ pub fn open_project(
         result: project.result,
     };
 
+    let bytes = project
+        .source_image
+        .decode()
+        .map_err(|err| err.to_string())?;
+    let decoded_source =
+        Arc::new(pipeline::decode_and_classify(&bytes).map_err(|err| err.to_string())?);
+    *lock_decoded(&decoded)? = Some(decoded_source);
     *lock_source(&source)? = Some(project.source_image);
+
     Ok(opened)
 }
