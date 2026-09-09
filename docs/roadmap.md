@@ -17,9 +17,15 @@ application is left in a partially-fake state (see CLAUDE.md Section 13).
   *pipeline* choice is realized as preset parameter differentiation,
   not structurally different code paths)*
 - **Phase 4** — Batch processing, `.lvp` projects, undo/history,
-  intermediate cache. *(current)*
+  intermediate cache. *(done — the intermediate cache covers decode
+  and heuristic classification, the two stages that never depend on
+  conversion parameters and were being needlessly repeated on every
+  Reconvert/undo/redo; quantization, vectorization, and SVG generation
+  still re-run in full on every conversion, which stays fast enough at
+  this stage not to need their own caching yet)*
 - **Phase 5** — LightBurn path-ordering optimization, Laser Optimization
   Score, advanced preview (before/after, per-tone, LightBurn preview).
+  *(current)*
 - **Phase 6** — Auto-update, bug reporting, crash reporting, full release
   pipeline.
 - **Phase 7** — CLI (`laser-vector convert input.jpg --preset portrait
