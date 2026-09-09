@@ -6,6 +6,7 @@
 mod commands;
 mod pipeline;
 
+use commands::SourceImageState;
 use laserprep_settings::SettingsStore;
 use tauri::Manager;
 
@@ -19,9 +20,14 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             commands::convert_image_file,
-            commands::save_svg_file
+            commands::convert_current_source,
+            commands::save_svg_file,
+            commands::save_project,
+            commands::open_project,
         ])
         .setup(|app| {
+            app.manage(SourceImageState::default());
+
             let config_dir = match app.path().app_config_dir() {
                 Ok(dir) => dir,
                 Err(err) => {

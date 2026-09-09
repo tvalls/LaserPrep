@@ -1926,6 +1926,7 @@ dependencies = [
  "laserprep-imaging",
  "laserprep-optimize",
  "laserprep-presets",
+ "laserprep-project",
  "laserprep-quantize",
  "laserprep-settings",
  "laserprep-svggen",

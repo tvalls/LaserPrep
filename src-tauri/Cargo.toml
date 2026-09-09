@@ -33,6 +33,7 @@ laserprep-optimize.workspace = true
 laserprep-presets.workspace = true
 laserprep-svggen.workspace = true
 laserprep-settings.workspace = true
+laserprep-project.workspace = true
 
 [dev-dependencies]
 image.workspace = true
