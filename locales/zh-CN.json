@@ -11,6 +11,8 @@
   "app.status.projectOpened": "已打开项目（{{fileName}}）。",
   "import.button": "导入图片",
   "export.button": "导出 SVG",
+  "undo.button": "撤销",
+  "redo.button": "重做",
   "reconvert.button": "重新转换",
   "saveProject.button": "保存项目",
   "openProject.button": "打开项目",

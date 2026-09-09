@@ -11,6 +11,8 @@
   "app.status.projectOpened": "Opened project ({{fileName}}).",
   "import.button": "Import Image",
   "export.button": "Export SVG",
+  "undo.button": "Undo",
+  "redo.button": "Redo",
   "reconvert.button": "Reconvert",
   "saveProject.button": "Save Project",
   "openProject.button": "Open Project",

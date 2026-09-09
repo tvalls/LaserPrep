@@ -244,6 +244,76 @@ describe("App", () => {
     ).toBeDisabled();
   });
 
+  it("keeps undo and redo disabled until a parameter changes", () => {
+    render(<App />);
+
+    expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Redo" })).toBeDisabled();
+  });
+
+  it("undoes and redoes a manual parameter change", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.clear(screen.getByLabelText("Tone count"));
+    await user.type(screen.getByLabelText("Tone count"), "8");
+    expect(screen.getByLabelText("Tone count")).toHaveValue(8);
+
+    await user.click(screen.getByRole("button", { name: "Undo" }));
+    expect(screen.getByLabelText("Tone count")).toHaveValue(5);
+    expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: "Redo" }));
+    expect(screen.getByLabelText("Tone count")).toHaveValue(8);
+    expect(screen.getByRole("button", { name: "Redo" })).toBeDisabled();
+  });
+
+  it("undoes a preset application back to the manual values it replaced", async () => {
+    open.mockResolvedValue("/tmp/photo.png");
+    invoke.mockResolvedValue({
+      svg: "<svg></svg>",
+      validation: cleanValidation,
+      classification: { category: "Logo", confidence: 0.8 },
+      suggestedPreset: {
+        name: "Logo",
+        toneCount: 2,
+        minAreaPx2: 4,
+        includeLegend: false,
+        mergeAdjacent: true,
+      },
+    });
+    const user = userEvent.setup();
+
+    render(<App />);
+    await user.click(screen.getByRole("button", { name: "Import Image" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Apply preset" }),
+    );
+    expect(screen.getByLabelText("Tone count")).toHaveValue(2);
+
+    await user.click(screen.getByRole("button", { name: "Undo" }));
+
+    expect(screen.getByLabelText("Tone count")).toHaveValue(5);
+    expect(screen.getByLabelText("Minimum area (px²)")).toHaveValue(16);
+  });
+
+  it("clears redo history and resets undo when a new image is imported", async () => {
+    open.mockResolvedValue("/tmp/photo.png");
+    invoke.mockResolvedValue(conversionResult());
+    const user = userEvent.setup();
+
+    render(<App />);
+    await user.clear(screen.getByLabelText("Tone count"));
+    await user.type(screen.getByLabelText("Tone count"), "8");
+    await user.click(screen.getByRole("button", { name: "Undo" }));
+
+    await user.click(screen.getByRole("button", { name: "Import Image" }));
+    await screen.findByRole("img");
+
+    expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Redo" })).toBeDisabled();
+  });
+
   it("reconverts the current source image with updated parameters", async () => {
     open.mockResolvedValue("/tmp/photo.png");
     invoke.mockResolvedValue(conversionResult());
