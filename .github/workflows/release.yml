@@ -92,14 +92,17 @@ jobs:
         # CLAUDE.md Section 22: "verificação de integridade/assinatura
         # quando suportado" — tauri-plugin-updater's endpoint format.
         # Prefers the NSIS updater artifact over MSI's when both exist
-        # (createUpdaterArtifacts produces one per bundle target);
-        # NSIS supports the plugin's silent update install path.
+        # (createUpdaterArtifacts signs each bundle target directly for
+        # Windows — the installer itself, e.g. "...-setup.exe.sig" /
+        # "....msi.sig" — there is no intermediate .zip archive here,
+        # unlike macOS/Linux updater artifacts); NSIS supports the
+        # plugin's silent update install path.
         shell: pwsh
         run: |
           $bundleDir = "target/release/bundle"
-          $sigFile = Get-ChildItem -Path $bundleDir -Recurse -Filter "*.nsis.zip.sig" | Select-Object -First 1
+          $sigFile = Get-ChildItem -Path $bundleDir -Recurse -Filter "*setup.exe.sig" | Select-Object -First 1
           if (-not $sigFile) {
-            $sigFile = Get-ChildItem -Path $bundleDir -Recurse -Filter "*.msi.zip.sig" | Select-Object -First 1
+            $sigFile = Get-ChildItem -Path $bundleDir -Recurse -Filter "*.msi.sig" | Select-Object -First 1
           }
           if (-not $sigFile) {
             throw "No updater signature (.sig) file found under $bundleDir — is createUpdaterArtifacts enabled and the signing key configured?"
