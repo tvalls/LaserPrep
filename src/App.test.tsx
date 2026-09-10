@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -59,7 +59,7 @@ const fullOptimizationScore = {
 
 const defaultSettings = {
   schemaVersion: 1,
-  ui: { language: "en-US", theme: "system" as const },
+  ui: { language: "en-US", theme: "system" as "light" | "dark" | "system" },
   updates: { checkOnStartup: false, skippedVersions: [] as string[] },
 };
 
@@ -783,6 +783,36 @@ describe("App", () => {
         updates: { checkOnStartup: true, skippedVersions: [] },
       },
     });
+  });
+
+  it("persists the theme preference when changed and applies it to the document", async () => {
+    mockInvokeWithSettings(defaultSettings);
+    const user = userEvent.setup();
+
+    render(<App />);
+    await user.selectOptions(await screen.findByLabelText("Theme"), "dark");
+
+    expect(invoke).toHaveBeenCalledWith("save_settings", {
+      settings: {
+        ...defaultSettings,
+        ui: { ...defaultSettings.ui, theme: "dark" },
+      },
+    });
+  });
+
+  it("applies the persisted theme as a data-theme attribute on load", async () => {
+    mockInvokeWithSettings({
+      ...defaultSettings,
+      ui: { ...defaultSettings.ui, theme: "dark" },
+    });
+
+    render(<App />);
+
+    await waitFor(() =>
+      expect(document.documentElement.getAttribute("data-theme")).toBe(
+        "dark",
+      ),
+    );
   });
 
   it("checks for updates automatically on startup when enabled", async () => {
