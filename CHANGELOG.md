@@ -5,6 +5,30 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.0](https://github.com/tvalls/LaserPrep/compare/laserprep-v0.2.0...laserprep-v0.3.0) (2026-09-10)
+
+
+### Features
+
+* add GitHub social preview image (visual identity Phase 4) ([5418e58](https://github.com/tvalls/LaserPrep/commit/5418e58294dd3334f2d4b061182329766a8d6087))
+* add GitHub social preview image (visual identity Phase 4) ([0ed3aaa](https://github.com/tvalls/LaserPrep/commit/0ed3aaa5b7a48d6e2e20cf65336844703809b12c))
+* add LaserPrep visual identity (Phase 1: icons, tokens, theme) ([12d2c4c](https://github.com/tvalls/LaserPrep/commit/12d2c4c5d0b716500015fcb820c88036d2fe1602))
+* add LaserPrep visual identity (Phase 1: icons, tokens, theme) ([e5ee8c4](https://github.com/tvalls/LaserPrep/commit/e5ee8c4fd897cd6e2dc5567c2c3ccb89ddab8f88))
+* add Windows installer branding (visual identity Phase 3) ([0402627](https://github.com/tvalls/LaserPrep/commit/040262776dc8733e1ac8455217143870b92869ac))
+* add Windows installer branding (visual identity Phase 3) ([78528b2](https://github.com/tvalls/LaserPrep/commit/78528b2bf21f8eb6024d2b680a65eb5b88b426a3))
+* apply card/alert styling and preset icons (visual identity Phase 2) ([b7cc9c7](https://github.com/tvalls/LaserPrep/commit/b7cc9c7462ef4f5491fa51ebe1ed18901e266c2a))
+* apply card/alert styling and preset icons (visual identity Phase 2) ([6502d04](https://github.com/tvalls/LaserPrep/commit/6502d048c2298aa1f84b9ef0b64081576f8a4594))
+* render each tone in a representative grayscale, not flat black ([de44a2c](https://github.com/tvalls/LaserPrep/commit/de44a2cde72f7b1064aa86cbaa33f33511120fb6))
+* render each tone in a representative grayscale, not flat black ([8adc177](https://github.com/tvalls/LaserPrep/commit/8adc17765e280da78fe25181b876c0c5cb4f0f78))
+
+
+### Bug Fixes
+
+* correct release.yml bundle path and tag-to-version stripping ([650e177](https://github.com/tvalls/LaserPrep/commit/650e17743924523c47d89fdf321c15016e9fe205))
+* match Tauri's actual Windows updater signature filenames ([e6f0f8b](https://github.com/tvalls/LaserPrep/commit/e6f0f8b29478ac9e391290b90d0c0b5faf5d7301))
+* match Tauri's actual Windows updater signature filenames ([7678432](https://github.com/tvalls/LaserPrep/commit/7678432e6b0632612d7c89723fd0b254ec27cb9d))
+* use the workspace-root target dir and correct tag prefix in release.yml ([bd176bf](https://github.com/tvalls/LaserPrep/commit/bd176bf2bc1a735f3092c4341b89861cf54209e2))
+
 ## [0.2.0](https://github.com/tvalls/LaserPrep/compare/laserprep-v0.1.0...laserprep-v0.2.0) (2026-09-09)
 
 
