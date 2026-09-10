@@ -7,7 +7,7 @@
 //! implementation touches the `vtracer`/`visioncortex` crates.
 
 use laserprep_quantize::ToneMap;
-use visioncortex::{CompoundPath, CompoundPathElement, PathSimplifyMode};
+use visioncortex::{CompoundPath, CompoundPathElement, PathSimplifyMode, PointF64};
 use vtracer::{ColorImage, ColorMode, Config, Preset};
 
 /// A row-major boolean mask over an image: `true` marks a pixel that
@@ -31,9 +31,13 @@ impl BinaryMask {
 }
 
 /// One traced region, already a complete, renderable SVG `<path>`
-/// element (its `d`, `fill`, and any coordinate-offset `transform`
-/// attributes are already resolved) — callers embed it verbatim; they
-/// never parse or reconstruct path data themselves.
+/// element (its `d` and any coordinate-offset `transform` attributes
+/// are already resolved) — callers embed it verbatim; they never parse
+/// or reconstruct path data themselves. Deliberately carries no `fill`
+/// of its own: a single traced region only knows its own tone's binary
+/// mask, not how that tone's color should relate to the other tones in
+/// the document, so `crates/svggen` applies `fill` once per tone group
+/// (see `laserprep_quantize::tone_mean_luminance`) instead.
 ///
 /// `start` is the path's first traced point, kept alongside the
 /// opaque `svg_element` string so `crates/optimize`'s path ordering
@@ -61,9 +65,10 @@ pub struct VectorPath {
 pub type PolygonShape = Vec<Vec<[f64; 2]>>;
 
 /// Renders a [`PolygonShape`] as a [`VectorPath`], using the same
-/// `M x y L x y ... Z` command style and black fill as
-/// [`VtracerVectorizer::trace`]'s curve-based output, so the two are
-/// interchangeable as far as `crates/svggen` is concerned.
+/// `M x y L x y ... Z` command style (and no `fill` of its own — see
+/// [`VectorPath`]) as [`VtracerVectorizer::trace`]'s curve-based
+/// output, so the two are interchangeable as far as `crates/svggen`
+/// is concerned.
 pub fn polygon_shape_to_vector_path(shape: &PolygonShape) -> VectorPath {
     let mut data = String::new();
     for contour in shape {
@@ -84,7 +89,7 @@ pub fn polygon_shape_to_vector_path(shape: &PolygonShape) -> VectorPath {
         .unwrap_or([0.0, 0.0]);
 
     VectorPath {
-        svg_element: format!("<path d=\"{}\" fill=\"#000000\"/>\n", data.trim_end()),
+        svg_element: format!("<path d=\"{}\"/>\n", data.trim_end()),
         start,
     }
 }
@@ -242,9 +247,20 @@ impl Vectorizer for VtracerVectorizer {
         Ok(svg
             .paths
             .into_iter()
-            .map(|path| VectorPath {
-                start: start_point(&path.path),
-                svg_element: path.to_string(),
+            .map(|path| {
+                let start = start_point(&path.path);
+                // Mirrors vtracer's own `SvgPath::fmt_with_precision`
+                // (`path.to_string()`), minus the `fill` attribute it
+                // bakes in — see the [`VectorPath`] doc comment for why
+                // fill is deliberately left for `crates/svggen` to set.
+                let (d, offset) = path.path.to_svg_string(true, PointF64::default(), None);
+                VectorPath {
+                    start,
+                    svg_element: format!(
+                        "<path d=\"{d}\" transform=\"translate({},{})\"/>\n",
+                        offset.x, offset.y
+                    ),
+                }
             })
             .collect())
     }
@@ -277,6 +293,17 @@ mod tests {
 
         assert_eq!(paths.len(), 1);
         assert!(paths[0].svg_element.contains("<path"));
+    }
+
+    #[test]
+    fn traced_paths_carry_no_fill_of_their_own() {
+        // crates/svggen applies fill once per tone group (see the
+        // VectorPath doc comment) — a single traced region has no
+        // basis to pick a color on its own.
+        let mask = solid_square_mask(12, 12);
+        let paths = VtracerVectorizer::default().trace(&mask).unwrap();
+
+        assert!(!paths[0].svg_element.contains("fill"));
     }
 
     #[test]
@@ -397,6 +424,7 @@ mod tests {
         assert!(path.svg_element.starts_with("<path d=\"M0 0 "));
         assert!(path.svg_element.contains("L4 0"));
         assert!(path.svg_element.contains("Z\""));
+        assert!(!path.svg_element.contains("fill"));
     }
 
     #[test]

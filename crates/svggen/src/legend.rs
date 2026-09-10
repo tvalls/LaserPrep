@@ -15,15 +15,22 @@ pub const RESERVED_WIDTH_PX: u32 = 150;
 
 /// Renders the `<g id="legend">` fragment: one filled swatch and its
 /// tone index per row, positioned `artwork_width + gap` to the right
-/// of the artwork's origin.
-pub fn legend_fragment(tone_count: ToneCount, artwork_width: u32) -> String {
+/// of the artwork's origin. Each swatch is filled with
+/// `tone_grays[tone]` — the same representative grayscale
+/// (`laserprep_quantize::tone_mean_luminance`) the matching `<g
+/// id="tone-N">` artwork group uses — so the legend visually confirms
+/// each layer's relative darkness rather than showing a generic black
+/// square (CLAUDE.md Section 10). A missing or out-of-range index
+/// falls back to black.
+pub fn legend_fragment(tone_count: ToneCount, artwork_width: u32, tone_grays: &[u8]) -> String {
     let x_offset = artwork_width + GAP_FROM_ARTWORK_PX;
 
     let mut fragment = format!("  <g id=\"legend\" transform=\"translate({x_offset},0)\">\n");
     for tone in 0..tone_count.get() {
         let y = u32::from(tone) * ROW_HEIGHT_PX;
+        let gray = tone_grays.get(tone as usize).copied().unwrap_or(0);
         fragment.push_str(&format!(
-            "    <rect x=\"0\" y=\"{y}\" width=\"{SWATCH_SIZE_PX}\" height=\"{SWATCH_SIZE_PX}\" fill=\"#000000\" />\n",
+            "    <rect x=\"0\" y=\"{y}\" width=\"{SWATCH_SIZE_PX}\" height=\"{SWATCH_SIZE_PX}\" fill=\"#{gray:02x}{gray:02x}{gray:02x}\" />\n",
         ));
         fragment.push_str(&format!(
             "    <text x=\"{text_x}\" y=\"{text_y}\" font-size=\"14\">{tone}</text>\n",
@@ -49,7 +56,7 @@ mod tests {
     #[test]
     fn emits_one_swatch_and_label_per_tone() {
         let tone_count = ToneCount::new(3).unwrap();
-        let fragment = legend_fragment(tone_count, 100);
+        let fragment = legend_fragment(tone_count, 100, &[]);
 
         assert!(fragment.starts_with("  <g id=\"legend\""));
         assert_eq!(fragment.matches("<rect").count(), 3);
@@ -59,8 +66,17 @@ mod tests {
     }
 
     #[test]
+    fn swatches_use_each_tones_representative_gray() {
+        let tone_count = ToneCount::new(2).unwrap();
+        let fragment = legend_fragment(tone_count, 100, &[10, 221]);
+
+        assert!(fragment.contains("fill=\"#0a0a0a\""));
+        assert!(fragment.contains("fill=\"#dddddd\""));
+    }
+
+    #[test]
     fn positions_the_group_past_the_artwork_plus_gap() {
-        let fragment = legend_fragment(ToneCount::default(), 200);
+        let fragment = legend_fragment(ToneCount::default(), 200, &[]);
         assert!(fragment.contains("translate(220,0)"));
     }
 
