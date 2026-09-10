@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="493" height="58" viewBox="0 0 493 58">
+      <rect width="493" height="58" fill="#FAFAFA"/>
+      <svg x="14" y="8" width="42" height="42" viewBox="0 0 256 256">
+  <circle cx="128" cy="60" r="6" fill="#1A1A1A"/>
+  <line x1="128" y1="66" x2="90" y2="120" stroke="#D32F2F" stroke-width="2.2" stroke-linecap="round"/>
+  <line x1="128" y1="66" x2="166" y2="120" stroke="#D32F2F" stroke-width="2.2" stroke-linecap="round"/>
+  <path d="M 70 140 L 100 170 L 70 200 Z" fill="none" stroke="#1A1A1A" stroke-width="2.2" stroke-linejoin="round"/>
+  <path d="M 156 140 L 186 170 L 156 200 Z" fill="none" stroke="#1A1A1A" stroke-width="2.2" stroke-linejoin="round"/>
+  <rect x="113" y="145" width="6" height="50" fill="none" stroke="#858585" stroke-width="2.2" opacity="0.8"/>
+  <rect x="128" y="145" width="6" height="50" fill="none" stroke="#858585" stroke-width="2.2" opacity="0.5"/>
+  <rect x="143" y="145" width="6" height="50" fill="none" stroke="#858585" stroke-width="2.2" opacity="0.2"/>
+</svg>
+      <text x="64" y="36" fill="#1A1A1A" font-family="'IBM Plex Mono', monospace" font-weight="700" font-size="22" letter-spacing="-0.5">LaserPrep</text>
+    </svg>

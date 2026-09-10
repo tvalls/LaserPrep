@@ -91,28 +91,63 @@ proceeding autonomously through each phase.
   automatically) before committing — irrelevant once the asset lives
   in the repo, and bloats every diff touching these files.
 
+- **Installer branding assets composed at each target's exact required
+  pixel size**, not scaled from one master image. NSIS needs a 150×57
+  header and a 164×314 sidebar; WiX (MSI) needs a 493×58 banner and a
+  493×312 dialog image — four different aspect ratios, so a single
+  source image scaled/cropped four ways would look inconsistent at
+  best. Built one SVG per target (icon as a nested
+  `<svg viewBox="0 0 256 256">` so it scales cleanly regardless of the
+  composition size), rasterized with `resvg` (pure Rust, exact pixel
+  output, no browser/ImageMagick dependency this machine doesn't
+  reliably have) and converted PNG→24-bit BMP with the `image` crate
+  (NSIS/WiX require plain BMP, not PNG). See
+  `src-tauri/installer/README.md` for the regeneration steps and
+  `src-tauri/installer/svg/` for the editable sources.
+- **No splash screen implemented, deliberately.** The design's splash
+  mockup (dark background, centered logo, progress bar) implies a
+  loading phase to bridge — but this app's real startup work (i18n
+  resources are bundled, not fetched; `settings`/version load via
+  local Tauri IPC) resolves fast enough that gating a splash on it
+  would either flash invisibly or require an artificial minimum
+  display time, which is exactly the kind of fake-functionality-for-
+  appearance CLAUDE.md Section 13 rejects. The one genuine
+  justification — masking WebView2's native cold-start latency before
+  any JS runs — needs Tauri's actual dual-window splashscreen pattern
+  (a second window shown immediately, closed once the main window
+  signals ready), which is real window-lifecycle logic this session
+  cannot validate locally (no reliable `tauri dev`/`tauri build` on
+  this machine's 8GB RAM) and whose failure mode — the app stuck
+  showing only the splash — is severe enough not to ship unverified
+  for a purely cosmetic win. Left for a session that can actually
+  exercise a built installer.
+
 ## Consequences
 
-- Phase 1 (this change): design tokens, self-hosted font, global base
-  styles, app icon, header logo, and the theme setting's first real
-  UI. Ships with the existing 42 frontend tests unmodified and green —
-  confirms the styling changes didn't alter any accessible name, role,
-  or behavior the tests depend on.
-- Deferred to later phases, tracked as follow-up work rather than
-  silently dropped: per-component class styling (cards, secondary
-  buttons, the six preset pictograms in the preset picker), the splash
-  screen, and Windows installer branding (NSIS/MSI header/sidebar
-  bitmaps).
+- Phase 1: design tokens, self-hosted font, global base styles, app
+  icon, header logo, and the theme setting's first real UI. Phase 2:
+  the six preset icons, `.card`/`.card-alert` styling on the suggested-
+  preset and validation summaries. Phase 3: Windows installer branding
+  (NSIS header/sidebar, MSI banner/dialog images). Phase 4: the GitHub
+  social preview image. Each phase shipped with the existing frontend
+  tests unmodified and green — confirms the styling changes didn't
+  alter any accessible name, role, or behavior the tests depend on.
+- Deferred, tracked as follow-up work rather than silently dropped:
+  the splash screen (see above — needs a session that can validate a
+  built installer), and a full preset-picker UI (noted in the Phase 2
+  PR as a product-functionality decision beyond this
+  design-implementation task).
 - **GitHub's repository social preview image has no public API** —
   `gh api` exposes no field for it on the repo resource, and no REST/
   GraphQL endpoint accepts an upload; it's Settings-UI-only
   (Settings → General → Social preview). The rendered asset
   (`.github/social-preview.png`, 1280×640, source
-  `.github/social-preview.svg`) is committed and ready, but actually
-  setting it requires the repository owner to upload it by hand —
-  documented here rather than left unexplained why this one piece of
-  "implement the visual identity" couldn't be finished the same way as
-  everything else.
+  `.github/social-preview.svg`) is committed, but actually setting it
+  as the repository's social preview still requires the repository
+  owner to upload it by hand through that page — documented here
+  rather than left unexplained why this one piece of "implement the
+  visual identity" couldn't be finished the same way as everything
+  else.
 - The app icon's thin, unfilled stroke style (faithful to the handoff)
   is hard to read at 32×32 and smaller — flagged to the user as a
   legibility concern with the design itself, not silently "fixed" by
