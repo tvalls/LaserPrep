@@ -1,0 +1,5 @@
+<svg viewBox="0 0 400 120" xmlns="http://www.w3.org/2000/svg">
+  
+  <rect width="400" height="120" fill="#1A1A1A"></rect>
+  <text x="20" y="80" fill="#E8E8E8" font-family="'IBM Plex Mono', monospace" font-size="40" font-weight="700" letter-spacing="-0.6">LaserPrep</text>
+</svg>
