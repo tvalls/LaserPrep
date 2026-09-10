@@ -40,11 +40,24 @@ impl Default for SvgOptions {
 /// is set, a `<g id="legend">` group is appended to the right of the
 /// artwork (CLAUDE.md Section 10) — its own layer, editable/hideable
 /// independently of the artwork groups above.
+///
+/// Each tone group (and its legend swatch) is filled with
+/// `tone_grays[tone]` — a grayscale value, not an arbitrary color —
+/// so the document visually resembles the original photo's own
+/// histogram when opened directly (browser, LightBurn, Illustrator),
+/// instead of every tone rendering as flat black. This is purely a
+/// rendering choice, derived only from the source image's own pixel
+/// data (see `laserprep_quantize::tone_mean_luminance`): LaserPrep
+/// never presumes laser power/speed from it (CLAUDE.md Sections 7 and
+/// 12) — a user still decides those in LightBurn, just with a visual
+/// reference for each layer's relative darkness instead of guessing.
+/// A missing or out-of-range index falls back to black.
 pub fn vectorized_tones_to_svg(
     width: u32,
     height: u32,
     tone_count: ToneCount,
     paths_by_tone: &[Vec<VectorPath>],
+    tone_grays: &[u8],
     options: &SvgOptions,
 ) -> String {
     let document_width = if options.include_legend {
@@ -73,7 +86,10 @@ pub fn vectorized_tones_to_svg(
     ));
 
     for tone in 0..tone_count.get() {
-        svg.push_str(&format!("  <g id=\"tone-{tone}\">\n"));
+        let gray = tone_grays.get(tone as usize).copied().unwrap_or(0);
+        svg.push_str(&format!(
+            "  <g id=\"tone-{tone}\" fill=\"#{gray:02x}{gray:02x}{gray:02x}\">\n"
+        ));
         if let Some(paths) = paths_by_tone.get(tone as usize) {
             for path in paths {
                 svg.push_str("    ");
@@ -84,7 +100,7 @@ pub fn vectorized_tones_to_svg(
     }
 
     if options.include_legend {
-        svg.push_str(&legend::legend_fragment(tone_count, width));
+        svg.push_str(&legend::legend_fragment(tone_count, width, tone_grays));
     }
 
     svg.push_str("</svg>\n");
@@ -97,7 +113,7 @@ mod tests {
 
     fn path(d: &str) -> VectorPath {
         VectorPath {
-            svg_element: format!("<path d=\"{d}\" fill=\"#000000\"/>\n"),
+            svg_element: format!("<path d=\"{d}\"/>\n"),
             start: [0.0, 0.0],
         }
     }
@@ -106,11 +122,18 @@ mod tests {
     fn emits_one_group_per_tone_level_even_when_empty() {
         let tone_count = ToneCount::new(3).unwrap();
         let paths_by_tone = vec![vec![path("M0 0")], vec![], vec![]];
-        let svg = vectorized_tones_to_svg(2, 2, tone_count, &paths_by_tone, &SvgOptions::default());
+        let svg = vectorized_tones_to_svg(
+            2,
+            2,
+            tone_count,
+            &paths_by_tone,
+            &[],
+            &SvgOptions::default(),
+        );
 
         for tone in 0..3 {
             assert!(
-                svg.contains(&format!("<g id=\"tone-{tone}\">")),
+                svg.contains(&format!("<g id=\"tone-{tone}\"")),
                 "missing group for tone {tone} in:\n{svg}"
             );
         }
@@ -122,7 +145,14 @@ mod tests {
     fn embeds_each_tones_paths_verbatim() {
         let tone_count = ToneCount::new(2).unwrap();
         let paths_by_tone = vec![vec![path("M0 0 L1 1")], vec![path("M2 2 L3 3")]];
-        let svg = vectorized_tones_to_svg(4, 4, tone_count, &paths_by_tone, &SvgOptions::default());
+        let svg = vectorized_tones_to_svg(
+            4,
+            4,
+            tone_count,
+            &paths_by_tone,
+            &[],
+            &SvgOptions::default(),
+        );
 
         assert!(svg.contains("d=\"M0 0 L1 1\""));
         assert!(svg.contains("d=\"M2 2 L3 3\""));
@@ -132,11 +162,36 @@ mod tests {
     fn tolerates_fewer_path_lists_than_tones() {
         let tone_count = ToneCount::new(4).unwrap();
         let paths_by_tone = vec![vec![path("M0 0")]];
-        let svg = vectorized_tones_to_svg(2, 2, tone_count, &paths_by_tone, &SvgOptions::default());
+        let svg = vectorized_tones_to_svg(
+            2,
+            2,
+            tone_count,
+            &paths_by_tone,
+            &[],
+            &SvgOptions::default(),
+        );
 
         for tone in 0..4 {
-            assert!(svg.contains(&format!("<g id=\"tone-{tone}\">")));
+            assert!(svg.contains(&format!("<g id=\"tone-{tone}\"")));
         }
+    }
+
+    #[test]
+    fn fills_each_tone_group_with_its_representative_gray() {
+        let tone_count = ToneCount::new(2).unwrap();
+        let svg =
+            vectorized_tones_to_svg(2, 2, tone_count, &[], &[10, 221], &SvgOptions::default());
+
+        assert!(svg.contains("<g id=\"tone-0\" fill=\"#0a0a0a\">"));
+        assert!(svg.contains("<g id=\"tone-1\" fill=\"#dddddd\">"));
+    }
+
+    #[test]
+    fn falls_back_to_black_for_a_tone_missing_from_tone_grays() {
+        let tone_count = ToneCount::new(2).unwrap();
+        let svg = vectorized_tones_to_svg(2, 2, tone_count, &[], &[10], &SvgOptions::default());
+
+        assert!(svg.contains("<g id=\"tone-1\" fill=\"#000000\">"));
     }
 
     #[test]
@@ -146,6 +201,7 @@ mod tests {
             2,
             2,
             tone_count,
+            &[],
             &[],
             &SvgOptions {
                 dpi: 96.0,
@@ -166,6 +222,7 @@ mod tests {
             50,
             tone_count,
             &[],
+            &[],
             &SvgOptions {
                 dpi: 96.0,
                 include_legend: true,
@@ -183,7 +240,8 @@ mod tests {
 
     #[test]
     fn omits_the_legend_group_by_default() {
-        let svg = vectorized_tones_to_svg(2, 2, ToneCount::default(), &[], &SvgOptions::default());
+        let svg =
+            vectorized_tones_to_svg(2, 2, ToneCount::default(), &[], &[], &SvgOptions::default());
         assert!(!svg.contains("legend"));
     }
 
@@ -213,6 +271,7 @@ mod tests {
             height,
             tone_count,
             &paths_by_tone,
+            &[10, 221],
             &SvgOptions::default(),
         );
         let report = validate(&svg, width, height, tone_count.get());

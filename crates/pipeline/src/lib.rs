@@ -18,7 +18,7 @@ use laserprep_optimize::{
     score_path_order,
 };
 use laserprep_presets::{Preset, suggest_preset};
-use laserprep_quantize::{QuantizeError, quantize_linear};
+use laserprep_quantize::{QuantizeError, quantize_linear, tone_mean_luminance};
 use laserprep_svggen::{SvgOptions, ValidationReport, validate, vectorized_tones_to_svg};
 use laserprep_vectorize::{
     BinaryMask, VectorPath, VectorizeError, Vectorizer, VtracerVectorizer,
@@ -110,6 +110,7 @@ pub fn convert_decoded_to_svg(
     let tone_count = ToneCount::new(tone_count)?;
     let image = source.image.to_luminance();
     let tone_map = quantize_linear(&image.samples, image.width, image.height, tone_count)?;
+    let tone_grays = tone_mean_luminance(&image.samples, &tone_map);
 
     let vectorizer = VtracerVectorizer::new(min_area_px2);
     let paths_by_tone: Vec<Vec<VectorPath>> = (0..tone_count.get())
@@ -140,6 +141,7 @@ pub fn convert_decoded_to_svg(
         tone_map.height,
         tone_count,
         &paths_by_tone,
+        &tone_grays,
         &SvgOptions {
             dpi,
             include_legend,
@@ -242,9 +244,44 @@ mod tests {
         )
         .unwrap();
         assert!(result.svg.starts_with("<svg "));
-        assert!(result.svg.contains("<g id=\"tone-0\">"));
-        assert!(result.svg.contains("<g id=\"tone-1\">"));
+        assert!(result.svg.contains("<g id=\"tone-0\""));
+        assert!(result.svg.contains("<g id=\"tone-1\""));
         assert!(result.svg.contains("<path"));
+    }
+
+    #[test]
+    fn renders_each_tone_group_in_a_grayscale_matching_its_source_darkness() {
+        // synthetic_png is a dark 8x8 square (tone 0) on a light
+        // background (tone 1) — tone 0's fill must be a darker gray
+        // than tone 1's, not the flat black both used to render as.
+        let result = convert(
+            &synthetic_png(),
+            96.0,
+            2,
+            laserprep_vectorize::DEFAULT_MIN_AREA_PX2,
+            false,
+            false,
+        )
+        .unwrap();
+
+        let tone_0_fill = result
+            .svg
+            .split("<g id=\"tone-0\" fill=\"#")
+            .nth(1)
+            .and_then(|rest| rest.split('"').next())
+            .expect("tone-0 group must declare a fill");
+        let tone_1_fill = result
+            .svg
+            .split("<g id=\"tone-1\" fill=\"#")
+            .nth(1)
+            .and_then(|rest| rest.split('"').next())
+            .expect("tone-1 group must declare a fill");
+
+        let gray = |hex: &str| u8::from_str_radix(&hex[0..2], 16).unwrap();
+        assert!(
+            gray(tone_0_fill) < gray(tone_1_fill),
+            "tone-0 (#{tone_0_fill}) should be darker than tone-1 (#{tone_1_fill})"
+        );
     }
 
     #[test]

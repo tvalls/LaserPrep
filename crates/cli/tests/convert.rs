@@ -72,10 +72,10 @@ fn explicit_tones_flag_overrides_the_preset_default() {
 
     assert!(result.status.success());
     let svg = std::fs::read_to_string(&output).unwrap();
-    assert!(svg.contains("<g id=\"tone-0\">"));
-    assert!(svg.contains("<g id=\"tone-1\">"));
-    assert!(svg.contains("<g id=\"tone-2\">"));
-    assert!(!svg.contains("<g id=\"tone-3\">"));
+    assert!(svg.contains("<g id=\"tone-0\""));
+    assert!(svg.contains("<g id=\"tone-1\""));
+    assert!(svg.contains("<g id=\"tone-2\""));
+    assert!(!svg.contains("<g id=\"tone-3\""));
 }
 
 #[test]

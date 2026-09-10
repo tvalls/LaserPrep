@@ -39,6 +39,18 @@ is independently hideable/editable as a LightBurn layer, same as any
 output (`ValidationReport`) is unaffected since it only counts
 `<path>` elements, and the legend uses `<rect>`/`<text>`.
 
+Both the legend swatches and the `tone-N` artwork groups are filled
+with that tone's *representative grayscale*
+(`laserprep_quantize::tone_mean_luminance` — the mean source luminance
+of every pixel assigned to that tone), not a flat black. Opening the
+generated SVG directly (browser, LightBurn, Illustrator) therefore
+looks like a posterized grayscale rendition of the original photo,
+letting a user visually judge each layer's relative darkness before
+touching LightBurn. This is deliberately *only* a rendering choice
+derived from the source image's own pixel data — LaserPrep still never
+presumes laser power/speed for any tone (CLAUDE.md Sections 7 and 12;
+see `docs/adr/0010-grayscale-tone-rendering.md`).
+
 ## Embedded metadata
 
 Every generated document has a `<metadata>` element recording the
