@@ -1,0 +1,300 @@
+/* LaserPrep design tokens and base styles.
+   Source: the "LaserPrep visual identity" Claude Design handoff
+   (docs/adr/0011-visual-identity.md). Applies globally via tag
+   selectors — most of the app's markup uses plain elements with no
+   classes, so this alone accounts for most of the visual change. */
+
+:root {
+  --color-laser-red: #d32f2f;
+  --color-laser-red-hover: #b71c1c;
+  --color-laser-orange: #ff6b35;
+  --color-graphite: #1a1a1a;
+  --color-off-white: #fafafa;
+  --color-gray-mid: #858585;
+  --color-gray-light: #e8e8e8;
+  --color-white: #ffffff;
+  --color-alert-bg: #f5f5f5;
+
+  --color-bg: var(--color-off-white);
+  --color-surface: var(--color-white);
+  --color-text: var(--color-graphite);
+  --color-text-muted: var(--color-gray-mid);
+  --color-border: var(--color-gray-light);
+  --color-accent: var(--color-laser-red);
+  --color-accent-hover: var(--color-laser-red-hover);
+  --color-focus-ring: rgba(211, 47, 47, 0.15);
+
+  --font-mono:
+    "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas,
+    monospace;
+  --font-size-display: 32px;
+  --font-size-headline: 24px;
+  --font-size-subhead: 18px;
+  --font-size-body: 14px;
+  --font-size-caption: 12px;
+  --font-size-code: 11px;
+
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-lg: 16px;
+  --spacing-xl: 24px;
+  --spacing-2xl: 32px;
+  --spacing-3xl: 48px;
+
+  --radius-subtle: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Dark theme: follows the OS by default ("system"), or is forced by
+   the `data-theme` attribute App.tsx sets from settings.ui.theme
+   ("light"/"dark"/"system" — see src/App.tsx's theme effect). */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-bg: var(--color-graphite);
+    --color-surface: #242424;
+    --color-text: var(--color-gray-light);
+    --color-text-muted: var(--color-gray-mid);
+    --color-border: #3a3a3a;
+    --color-accent: var(--color-laser-orange);
+    --color-accent-hover: #ff8c61;
+    --color-focus-ring: rgba(255, 107, 53, 0.2);
+    --color-alert-bg: #2a2320;
+  }
+}
+
+:root[data-theme="dark"] {
+  --color-bg: var(--color-graphite);
+  --color-surface: #242424;
+  --color-text: var(--color-gray-light);
+  --color-text-muted: var(--color-gray-mid);
+  --color-border: #3a3a3a;
+  --color-accent: var(--color-laser-orange);
+  --color-accent-hover: #ff8c61;
+  --color-focus-ring: rgba(255, 107, 53, 0.2);
+  --color-alert-bg: #2a2320;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body);
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+main {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: var(--spacing-xl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xl);
+}
+
+h1 {
+  font-size: var(--font-size-display);
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  margin: 0;
+}
+
+h2 {
+  font-size: var(--font-size-headline);
+  font-weight: 600;
+  margin: 0;
+}
+
+h3 {
+  font-size: var(--font-size-subhead);
+  font-weight: 500;
+  margin: 0;
+}
+
+p {
+  margin: 0;
+}
+
+a {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--color-accent-hover);
+}
+
+label {
+  font-size: var(--font-size-caption);
+  font-weight: 600;
+  color: var(--color-text-muted);
+  display: block;
+  margin-bottom: var(--spacing-xs);
+}
+
+section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+/* Buttons: the type="submit"/plain <button> in App.tsx acts as the
+   primary action (Convert); anything with an explicit "secondary"
+   look opts in via .btn-secondary. */
+button {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body);
+  font-weight: 600;
+  padding: 10px 18px;
+  border-radius: var(--radius-subtle);
+  cursor: pointer;
+  background-color: var(--color-accent);
+  color: var(--color-off-white);
+  border: 1.5px solid var(--color-accent);
+  transition:
+    background-color 0.15s,
+    border-color 0.15s,
+    opacity 0.15s;
+}
+
+button:hover:not(:disabled) {
+  background-color: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+:root[data-theme="dark"] button {
+  background-color: transparent;
+  color: var(--color-accent);
+}
+
+:root[data-theme="dark"] button:hover:not(:disabled) {
+  background-color: rgba(255, 107, 53, 0.1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) button {
+    background-color: transparent;
+    color: var(--color-accent);
+  }
+
+  :root:not([data-theme="light"]) button:hover:not(:disabled) {
+    background-color: rgba(255, 107, 53, 0.1);
+  }
+}
+
+button.btn-secondary {
+  background-color: transparent;
+  color: var(--color-text-muted);
+  border-color: var(--color-text-muted);
+}
+
+button.btn-secondary:hover:not(:disabled) {
+  background-color: rgba(133, 133, 133, 0.1);
+}
+
+/* Inputs, selects, checkboxes */
+input[type="text"],
+input[type="number"],
+select {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body);
+  padding: 8px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-subtle);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+}
+
+input[type="text"]:focus,
+input[type="number"]:focus,
+select:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-focus-ring);
+}
+
+input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--color-accent);
+}
+
+/* Status / diagnostic text (role="status" elements throughout the
+   app) reads as a quiet caption, not body text. */
+[role="status"] {
+  font-size: var(--font-size-caption);
+  color: var(--color-text-muted);
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding-bottom: var(--spacing-lg);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.app-header__icon {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+}
+
+.app-header__icon--dark {
+  display: none;
+}
+
+:root[data-theme="dark"] .app-header__icon--light {
+  display: none;
+}
+
+:root[data-theme="dark"] .app-header__icon--dark {
+  display: block;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .app-header__icon--light {
+    display: none;
+  }
+
+  :root:not([data-theme="light"]) .app-header__icon--dark {
+    display: block;
+  }
+}
+
+.app-header__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.app-header__text h1 {
+  font-size: 28px;
+}
+
+.app-header__text p {
+  font-size: var(--font-size-caption);
+  color: var(--color-text-muted);
+}

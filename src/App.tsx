@@ -7,6 +7,8 @@ import { check as checkForUpdate, type Update } from "@tauri-apps/plugin-updater
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import iconDark from "./assets/brand/icon-dark.svg";
+import iconLight from "./assets/brand/icon-light.svg";
 import { OFFICIALLY_SUPPORTED_LOCALES } from "./i18n";
 
 const MIN_TONE_COUNT = 2;
@@ -369,6 +371,20 @@ export default function App() {
   useEffect(() => {
     setMinAreaText(String(minAreaPx2));
   }, [minAreaPx2]);
+
+  // CLAUDE.md Section 23: "suporte a tema claro/escuro/sistema".
+  // "system" removes the override so src/index.css's
+  // prefers-color-scheme rules take over; light/dark force it via the
+  // data-theme attribute regardless of the OS setting.
+  useEffect(() => {
+    const root = document.documentElement;
+    const theme = settings?.ui.theme ?? "system";
+    if (theme === "system") {
+      root.removeAttribute("data-theme");
+    } else {
+      root.setAttribute("data-theme", theme);
+    }
+  }, [settings?.ui.theme]);
 
   const previewSvg = svg ? buildPreviewSvg(svg, toneVisibility, colorizeByLayer) : null;
 
@@ -756,6 +772,20 @@ export default function App() {
     }
   }
 
+  async function handleThemeChange(theme: Settings["ui"]["theme"]) {
+    if (!settings) {
+      return;
+    }
+    try {
+      await saveSettings({
+        ...settings,
+        ui: { ...settings.ui, theme },
+      });
+    } catch (error) {
+      setStatus({ kind: "error", message: String(error) });
+    }
+  }
+
   async function handleUpdateNow() {
     if (!availableUpdate) {
       return;
@@ -916,8 +946,24 @@ export default function App() {
 
   return (
     <main>
-      <h1>{t("app.title")}</h1>
-      <p>{t("app.tagline")}</p>
+      <header className="app-header">
+        <img
+          src={iconLight}
+          alt=""
+          aria-hidden="true"
+          className="app-header__icon app-header__icon--light"
+        />
+        <img
+          src={iconDark}
+          alt=""
+          aria-hidden="true"
+          className="app-header__icon app-header__icon--dark"
+        />
+        <div className="app-header__text">
+          <h1>{t("app.title")}</h1>
+          <p>{t("app.tagline")}</p>
+        </div>
+      </header>
 
       <div>
         <label htmlFor="tone-count">{t("toneCount.label")}</label>
@@ -1160,6 +1206,25 @@ export default function App() {
           </option>
         ))}
       </select>
+
+      {settings && (
+        <>
+          <label htmlFor="theme-switcher">{t("theme.switcher.label")}</label>
+          <select
+            id="theme-switcher"
+            value={settings.ui.theme}
+            onChange={(event) =>
+              void handleThemeChange(
+                event.target.value as Settings["ui"]["theme"],
+              )
+            }
+          >
+            <option value="system">{t("theme.switcher.system")}</option>
+            <option value="light">{t("theme.switcher.light")}</option>
+            <option value="dark">{t("theme.switcher.dark")}</option>
+          </select>
+        </>
+      )}
 
       <section aria-label={t("update.heading")}>
         <h2>{t("update.heading")}</h2>
