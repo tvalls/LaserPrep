@@ -101,8 +101,18 @@ proceeding autonomously through each phase.
 - Deferred to later phases, tracked as follow-up work rather than
   silently dropped: per-component class styling (cards, secondary
   buttons, the six preset pictograms in the preset picker), the splash
-  screen, the GitHub social preview image, and Windows installer
-  branding (NSIS/MSI header/sidebar bitmaps).
+  screen, and Windows installer branding (NSIS/MSI header/sidebar
+  bitmaps).
+- **GitHub's repository social preview image has no public API** —
+  `gh api` exposes no field for it on the repo resource, and no REST/
+  GraphQL endpoint accepts an upload; it's Settings-UI-only
+  (Settings → General → Social preview). The rendered asset
+  (`.github/social-preview.png`, 1280×640, source
+  `.github/social-preview.svg`) is committed and ready, but actually
+  setting it requires the repository owner to upload it by hand —
+  documented here rather than left unexplained why this one piece of
+  "implement the visual identity" couldn't be finished the same way as
+  everything else.
 - The app icon's thin, unfilled stroke style (faithful to the handoff)
   is hard to read at 32×32 and smaller — flagged to the user as a
   legibility concern with the design itself, not silently "fixed" by
