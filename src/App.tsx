@@ -9,6 +9,18 @@ import { useTranslation } from "react-i18next";
 
 import iconDark from "./assets/brand/icon-dark.svg";
 import iconLight from "./assets/brand/icon-light.svg";
+import presetAnimalDark from "./assets/brand/presets/animal-dark.svg";
+import presetAnimalLight from "./assets/brand/presets/animal-light.svg";
+import presetDrawingDark from "./assets/brand/presets/drawing-dark.svg";
+import presetDrawingLight from "./assets/brand/presets/drawing-light.svg";
+import presetLandscapeDark from "./assets/brand/presets/landscape-dark.svg";
+import presetLandscapeLight from "./assets/brand/presets/landscape-light.svg";
+import presetLogoDark from "./assets/brand/presets/logo-dark.svg";
+import presetLogoLight from "./assets/brand/presets/logo-light.svg";
+import presetPhotoDark from "./assets/brand/presets/photo-dark.svg";
+import presetPhotoLight from "./assets/brand/presets/photo-light.svg";
+import presetPortraitDark from "./assets/brand/presets/portrait-dark.svg";
+import presetPortraitLight from "./assets/brand/presets/portrait-light.svg";
 import { OFFICIALLY_SUPPORTED_LOCALES } from "./i18n";
 
 const MIN_TONE_COUNT = 2;
@@ -160,6 +172,15 @@ const PRESET_LABEL_KEYS: Record<PresetName, string> = {
   Logo: "preset.logo",
   Drawing: "preset.drawing",
   Landscape: "preset.landscape",
+};
+
+const PRESET_ICONS: Record<PresetName, { light: string; dark: string }> = {
+  Photo: { light: presetPhotoLight, dark: presetPhotoDark },
+  Portrait: { light: presetPortraitLight, dark: presetPortraitDark },
+  Animal: { light: presetAnimalLight, dark: presetAnimalDark },
+  Logo: { light: presetLogoLight, dark: presetLogoDark },
+  Drawing: { light: presetDrawingLight, dark: presetDrawingDark },
+  Landscape: { light: presetLandscapeLight, dark: presetLandscapeDark },
 };
 
 const BATCH_STATUS_LABEL_KEYS: Record<BatchItemStatus, string> = {
@@ -1070,29 +1091,52 @@ export default function App() {
       )}
 
       {suggestedPreset && (
-        <p>
-          {t("preset.suggestion", {
-            preset: t(PRESET_LABEL_KEYS[suggestedPreset.name]),
-          })}{" "}
-          <button type="button" onClick={() => applyPreset(suggestedPreset)}>
-            {t("preset.applyButton")}
-          </button>
-        </p>
+        <div className="card card--row">
+          <img
+            src={PRESET_ICONS[suggestedPreset.name].light}
+            alt=""
+            aria-hidden="true"
+            className="card__icon card__icon--light"
+          />
+          <img
+            src={PRESET_ICONS[suggestedPreset.name].dark}
+            alt=""
+            aria-hidden="true"
+            className="card__icon card__icon--dark"
+          />
+          <p>
+            {t("preset.suggestion", {
+              preset: t(PRESET_LABEL_KEYS[suggestedPreset.name]),
+            })}{" "}
+            <button type="button" onClick={() => applyPreset(suggestedPreset)}>
+              {t("preset.applyButton")}
+            </button>
+          </p>
+        </div>
       )}
 
       {validation && (
-        <p>
-          {t("validation.summary", {
-            totalPaths: validation.totalPaths,
-            totalNodes: validation.totalNodes,
-          })}
-          {validation.openPaths > 0 && (
-            <> {t("validation.openPathsWarning", { count: validation.openPaths })}</>
-          )}
-          {validation.lightburnIncompatibilities.length > 0 && (
-            <> {t("validation.lightburnWarning")}</>
-          )}
-        </p>
+        <div
+          className={
+            validation.openPaths > 0 ||
+            validation.lightburnIncompatibilities.length > 0
+              ? "card-alert"
+              : "card"
+          }
+        >
+          <p>
+            {t("validation.summary", {
+              totalPaths: validation.totalPaths,
+              totalNodes: validation.totalNodes,
+            })}
+            {validation.openPaths > 0 && (
+              <> {t("validation.openPathsWarning", { count: validation.openPaths })}</>
+            )}
+            {validation.lightburnIncompatibilities.length > 0 && (
+              <> {t("validation.lightburnWarning")}</>
+            )}
+          </p>
+        </div>
       )}
 
       {optimizationScore && (
