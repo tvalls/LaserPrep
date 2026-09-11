@@ -5,6 +5,14 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.4.0](https://github.com/tvalls/LaserPrep/compare/laserprep-v0.3.0...laserprep-v0.4.0) (2026-09-11)
+
+
+### Features
+
+* expose Curve Simplification / Node Reduction end to end ([dcf574a](https://github.com/tvalls/LaserPrep/commit/dcf574adea4138184051f3e61fb3ef0e85f0ab54))
+* expose Curve Simplification / Node Reduction end to end ([383cd86](https://github.com/tvalls/LaserPrep/commit/383cd8626ae561770b4a6e14318c0a6478d83272))
+
 ## [0.3.0](https://github.com/tvalls/LaserPrep/compare/laserprep-v0.2.0...laserprep-v0.3.0) (2026-09-10)
 
 
