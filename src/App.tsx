@@ -28,6 +28,9 @@ const MAX_TONE_COUNT = 16;
 const DEFAULT_TONE_COUNT = 5;
 const DEFAULT_DPI = 96;
 const DEFAULT_MIN_AREA_PX2 = 16;
+// Matches laserprep_vectorize::DEFAULT_CURVE_SIMPLIFICATION (vtracer's
+// own stock curve-fitting tolerance).
+const DEFAULT_CURVE_SIMPLIFICATION = 4;
 
 type Status =
   | { kind: "idle" }
@@ -78,6 +81,7 @@ type Preset = {
   name: PresetName;
   toneCount: number;
   minAreaPx2: number;
+  curveSimplification: number;
   includeLegend: boolean;
   mergeAdjacent: boolean;
 };
@@ -100,6 +104,7 @@ type ProjectParams = {
   dpi: number;
   toneCount: number;
   minAreaPx2: number;
+  curveSimplification: number;
   includeLegend: boolean;
   mergeAdjacent: boolean;
   orderPaths: boolean;
@@ -141,6 +146,7 @@ type ParamsSnapshot = {
   dpi: number;
   toneCount: number;
   minAreaPx2: number;
+  curveSimplification: number;
   includeLegend: boolean;
   mergeAdjacent: boolean;
   orderPaths: boolean;
@@ -243,6 +249,9 @@ export default function App() {
   const [toneCount, setToneCount] = useState(DEFAULT_TONE_COUNT);
   const [dpi, setDpi] = useState(DEFAULT_DPI);
   const [minAreaPx2, setMinAreaPx2] = useState(DEFAULT_MIN_AREA_PX2);
+  const [curveSimplification, setCurveSimplification] = useState(
+    DEFAULT_CURVE_SIMPLIFICATION,
+  );
   // Each number input shows its own draft text rather than binding
   // directly to the committed number: while `value` is controlled by
   // `toneCount` etc., clearing the field to retype it would otherwise
@@ -254,6 +263,9 @@ export default function App() {
   const [toneCountText, setToneCountText] = useState(String(DEFAULT_TONE_COUNT));
   const [dpiText, setDpiText] = useState(String(DEFAULT_DPI));
   const [minAreaText, setMinAreaText] = useState(String(DEFAULT_MIN_AREA_PX2));
+  const [curveSimplificationText, setCurveSimplificationText] = useState(
+    String(DEFAULT_CURVE_SIMPLIFICATION),
+  );
   const [includeLegend, setIncludeLegend] = useState(false);
   const [mergeAdjacent, setMergeAdjacent] = useState(false);
   const [orderPaths, setOrderPaths] = useState(false);
@@ -298,6 +310,7 @@ export default function App() {
       dpi,
       toneCount,
       minAreaPx2,
+      curveSimplification,
       includeLegend,
       mergeAdjacent,
       orderPaths,
@@ -307,13 +320,22 @@ export default function App() {
 
   /** The subset of `currentParamsSnapshot` the backend's `ConversionParams` expects (no `presetName`). */
   function currentParams(): ProjectParams {
-    return { dpi, toneCount, minAreaPx2, includeLegend, mergeAdjacent, orderPaths };
+    return {
+      dpi,
+      toneCount,
+      minAreaPx2,
+      curveSimplification,
+      includeLegend,
+      mergeAdjacent,
+      orderPaths,
+    };
   }
 
   function applyParamsSnapshot(snapshot: ParamsSnapshot) {
     setDpi(snapshot.dpi);
     setToneCount(snapshot.toneCount);
     setMinAreaPx2(snapshot.minAreaPx2);
+    setCurveSimplification(snapshot.curveSimplification);
     setIncludeLegend(snapshot.includeLegend);
     setMergeAdjacent(snapshot.mergeAdjacent);
     setOrderPaths(snapshot.orderPaths);
@@ -392,6 +414,10 @@ export default function App() {
   useEffect(() => {
     setMinAreaText(String(minAreaPx2));
   }, [minAreaPx2]);
+
+  useEffect(() => {
+    setCurveSimplificationText(String(curveSimplification));
+  }, [curveSimplification]);
 
   // CLAUDE.md Section 23: "suporte a tema claro/escuro/sistema".
   // "system" removes the override so src/index.css's
@@ -508,6 +534,7 @@ export default function App() {
       dpi,
       toneCount: preset.toneCount,
       minAreaPx2: preset.minAreaPx2,
+      curveSimplification: preset.curveSimplification,
       includeLegend: preset.includeLegend,
       mergeAdjacent: preset.mergeAdjacent,
       orderPaths,
@@ -724,6 +751,18 @@ export default function App() {
     const next = parseNumberInput(value);
     if (next !== null && next !== minAreaPx2) {
       commitParamsChange({ ...currentParamsSnapshot(), minAreaPx2: next, presetName: null });
+    }
+  }
+
+  function handleCurveSimplificationChange(value: string) {
+    setCurveSimplificationText(value);
+    const next = parseNumberInput(value);
+    if (next !== null && next !== curveSimplification) {
+      commitParamsChange({
+        ...currentParamsSnapshot(),
+        curveSimplification: next,
+        presetName: null,
+      });
     }
   }
 
@@ -1013,6 +1052,18 @@ export default function App() {
           min={1}
           value={minAreaText}
           onChange={(event) => handleMinAreaChange(event.target.value)}
+        />
+
+        <label htmlFor="curve-simplification">
+          {t("curveSimplification.label")}
+        </label>
+        <input
+          id="curve-simplification"
+          type="number"
+          min={0}
+          step={0.5}
+          value={curveSimplificationText}
+          onChange={(event) => handleCurveSimplificationChange(event.target.value)}
         />
 
         <label htmlFor="include-legend">{t("legend.label")}</label>

@@ -90,19 +90,24 @@ pub fn decode_and_classify(bytes: &[u8]) -> Result<DecodedSource, PipelineError>
 /// as an SVG document — one traced `<path>` set per tone level — and
 /// validates the result. `min_area_px2` is CLAUDE.md Section 8's
 /// "Minimum Area" noise filter (see [`VtracerVectorizer`]);
-/// `include_legend` adds the optional tone legend (CLAUDE.md Section
-/// 10); `merge_adjacent` applies `laserprep_optimize::merge_adjacent_regions`
+/// `curve_simplification` is CLAUDE.md Section 8's "Curve
+/// Simplification"/"Node Reduction" (see [`VtracerVectorizer`]'s doc
+/// comment for why those are one parameter here); `include_legend`
+/// adds the optional tone legend (CLAUDE.md Section 10);
+/// `merge_adjacent` applies `laserprep_optimize::merge_adjacent_regions`
 /// per tone (CLAUDE.md Section 8: "Merge Adjacent Regions"), trading
 /// curve fitting for straight-line polygons on the tones it merges
 /// (see `laserprep_vectorize::PolygonShape`); `order_paths` applies
 /// `laserprep_optimize::order_paths_by_travel_distance` per tone
 /// (CLAUDE.md Section 8: "Path Ordering", `docs/roadmap.md` Phase 5)
 /// to reduce laser travel between cuts within each tone layer.
+#[allow(clippy::too_many_arguments)]
 pub fn convert_decoded_to_svg(
     source: &DecodedSource,
     dpi: f64,
     tone_count: u8,
     min_area_px2: u32,
+    curve_simplification: f64,
     include_legend: bool,
     merge_adjacent: bool,
     order_paths: bool,
@@ -112,7 +117,7 @@ pub fn convert_decoded_to_svg(
     let tone_map = quantize_linear(&image.samples, image.width, image.height, tone_count)?;
     let tone_grays = tone_mean_luminance(&image.samples, &tone_map);
 
-    let vectorizer = VtracerVectorizer::new(min_area_px2);
+    let vectorizer = VtracerVectorizer::new(min_area_px2, curve_simplification);
     let paths_by_tone: Vec<Vec<VectorPath>> = (0..tone_count.get())
         .map(|tone| -> Result<Vec<VectorPath>, VectorizeError> {
             let mask = BinaryMask::from_tone_map(&tone_map, tone);
@@ -163,11 +168,13 @@ pub fn convert_decoded_to_svg(
 /// convenience for callers (such as `crates/cli`) that have no reason
 /// to cache the decoded/classified intermediate the way the desktop
 /// UI does across Reconvert/undo/redo.
+#[allow(clippy::too_many_arguments)]
 pub fn convert_bytes_to_svg(
     bytes: &[u8],
     dpi: f64,
     tone_count: u8,
     min_area_px2: u32,
+    curve_simplification: f64,
     include_legend: bool,
     merge_adjacent: bool,
     order_paths: bool,
@@ -178,6 +185,7 @@ pub fn convert_bytes_to_svg(
         dpi,
         tone_count,
         min_area_px2,
+        curve_simplification,
         include_legend,
         merge_adjacent,
         order_paths,
@@ -208,6 +216,7 @@ mod tests {
             dpi,
             tone_count,
             min_area_px2,
+            laserprep_vectorize::DEFAULT_CURVE_SIMPLIFICATION,
             include_legend,
             merge_adjacent,
             false,
@@ -461,6 +470,7 @@ mod tests {
             96.0,
             2,
             laserprep_vectorize::DEFAULT_MIN_AREA_PX2,
+            laserprep_vectorize::DEFAULT_CURVE_SIMPLIFICATION,
             false,
             false,
             true,
@@ -475,6 +485,46 @@ mod tests {
             result.optimization_score.efficiency > 0.999,
             "expected near-1.0 efficiency after ordering, got {}",
             result.optimization_score.efficiency
+        );
+    }
+
+    /// A staircase boundary (jagged at pixel scale) — the kind of
+    /// high-frequency edge real photo texture (skin, fur, JPEG
+    /// compression blocks) produces, and what motivated exposing
+    /// `curve_simplification` in the first place (a real user's
+    /// high-resolution portrait export had one single path with over
+    /// 35,000 nodes).
+    fn staircase_png() -> Vec<u8> {
+        let size = 60u32;
+        let mut buffer =
+            ImageBuffer::<Rgb<u8>, Vec<u8>>::from_pixel(size, size, Rgb([255, 255, 255]));
+        for y in 0..size {
+            for x in 0..size {
+                if x < y {
+                    buffer.put_pixel(x, y, Rgb([0, 0, 0]));
+                }
+            }
+        }
+        let mut bytes = Vec::new();
+        buffer
+            .write_to(&mut Cursor::new(&mut bytes), image::ImageFormat::Png)
+            .unwrap();
+        bytes
+    }
+
+    #[test]
+    fn higher_curve_simplification_reduces_total_nodes_end_to_end() {
+        let bytes = staircase_png();
+
+        let detailed = convert_bytes_to_svg(&bytes, 96.0, 2, 1, 0.5, false, false, false).unwrap();
+        let simplified =
+            convert_bytes_to_svg(&bytes, 96.0, 2, 1, 30.0, false, false, false).unwrap();
+
+        assert!(
+            simplified.validation.total_nodes < detailed.validation.total_nodes,
+            "expected fewer total nodes at higher curve_simplification: {} (simplified) vs {} (detailed)",
+            simplified.validation.total_nodes,
+            detailed.validation.total_nodes,
         );
     }
 }
