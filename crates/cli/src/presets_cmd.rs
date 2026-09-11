@@ -10,15 +10,16 @@ use laserprep_presets::ALL_PRESETS;
 
 pub fn run() {
     println!(
-        "{:<10} {:>6} {:>10} {:>8} {:>15}",
-        "preset", "tones", "min-area", "legend", "merge-adjacent"
+        "{:<10} {:>6} {:>10} {:>12} {:>8} {:>15}",
+        "preset", "tones", "min-area", "curve-simpl.", "legend", "merge-adjacent"
     );
     for preset in ALL_PRESETS {
         println!(
-            "{:<10} {:>6} {:>10} {:>8} {:>15}",
+            "{:<10} {:>6} {:>10} {:>12} {:>8} {:>15}",
             preset_name_label(preset.name),
             preset.tone_count,
             preset.min_area_px2,
+            preset.curve_simplification,
             preset.include_legend,
             preset.merge_adjacent,
         );

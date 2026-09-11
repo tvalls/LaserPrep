@@ -88,6 +88,15 @@ mod tests {
     }
 
     #[test]
+    fn missing_curve_simplification_defaults_to_vtracers_stock_tolerance() {
+        // A project saved before this field existed must reconvert
+        // with the same behavior it had at the time, not a value that
+        // silently changes its output.
+        let project = migrate(minimal_v1_project()).expect("should migrate");
+        assert_eq!(project.params.curve_simplification, 4.0);
+    }
+
+    #[test]
     fn rejects_schema_version_newer_than_supported() {
         let mut data = minimal_v1_project();
         data["schemaVersion"] = json!(999);

@@ -22,6 +22,25 @@ fn laser_vector() -> Command {
     Command::new(env!("CARGO_BIN_EXE_laser-vector"))
 }
 
+/// A staircase boundary (jagged at pixel scale) — the kind of
+/// high-frequency edge real photo texture (skin, fur, JPEG compression
+/// blocks) produces, so `--curve-simplification` has something real to
+/// simplify away.
+fn staircase_png(dir: &std::path::Path) -> std::path::PathBuf {
+    let size = 60u32;
+    let mut buffer = ImageBuffer::<Rgb<u8>, Vec<u8>>::from_pixel(size, size, Rgb([255, 255, 255]));
+    for y in 0..size {
+        for x in 0..size {
+            if x < y {
+                buffer.put_pixel(x, y, Rgb([0, 0, 0]));
+            }
+        }
+    }
+    let path = dir.join("staircase.png");
+    buffer.save(&path).unwrap();
+    path
+}
+
 #[test]
 fn converts_an_image_to_svg_with_a_preset() {
     let dir = tempfile::tempdir().unwrap();
@@ -96,6 +115,58 @@ fn order_paths_flag_is_accepted() {
     assert!(result.status.success());
     let stdout = String::from_utf8_lossy(&result.stdout);
     assert!(stdout.contains("path ordering efficiency"));
+}
+
+#[test]
+fn curve_simplification_flag_reduces_reported_node_count() {
+    let dir = tempfile::tempdir().unwrap();
+    let input = staircase_png(dir.path());
+
+    let node_count_for = |curve_simplification: &str| -> u64 {
+        let output = dir.path().join(format!("out-{curve_simplification}.svg"));
+        let result = laser_vector()
+            .arg("convert")
+            .arg(&input)
+            .arg("--output")
+            .arg(&output)
+            .arg("--preset")
+            .arg("photo")
+            .arg("--tones")
+            .arg("2")
+            .arg("--min-area")
+            .arg("1")
+            .arg("--curve-simplification")
+            .arg(curve_simplification)
+            .output()
+            .unwrap();
+        assert!(
+            result.status.success(),
+            "stderr: {}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        let stdout = String::from_utf8_lossy(&result.stdout).into_owned();
+        let line = stdout
+            .lines()
+            .find(|line| line.starts_with("validation:"))
+            .expect("a validation summary line");
+        // "validation: N paths (... ), M nodes, LightBurn-compatible: ..."
+        let words: Vec<&str> = line.split_whitespace().collect();
+        let nodes_index = words
+            .iter()
+            .position(|&w| w == "nodes,")
+            .expect("a 'nodes,' token");
+        words[nodes_index - 1]
+            .parse()
+            .expect("node count should be a number")
+    };
+
+    let detailed = node_count_for("0.5");
+    let simplified = node_count_for("30.0");
+
+    assert!(
+        simplified < detailed,
+        "expected fewer nodes at higher curve simplification: {simplified} (simplified) vs {detailed} (detailed)"
+    );
 }
 
 #[test]

@@ -21,6 +21,7 @@
   "toneCount.label": "色调数量",
   "dpi.label": "源 DPI",
   "minArea.label": "最小面积（平方像素）",
+  "curveSimplification.label": "曲线简化",
   "legend.label": "包含色调图例",
   "mergeAdjacent.label": "合并相邻区域",
   "orderPaths.label": "路径排序（减少激光空程）",

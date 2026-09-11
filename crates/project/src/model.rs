@@ -125,6 +125,13 @@ pub struct ConversionParams {
     /// reconvert.
     pub tone_count: u8,
     pub min_area_px2: u32,
+    /// CLAUDE.md Section 8's "Curve Simplification"/"Node Reduction"
+    /// (see `laserprep_vectorize::VtracerVectorizer`'s doc comment for
+    /// why those are one field here). Defaults to vtracer's own stock
+    /// tolerance on projects saved before this field existed, matching
+    /// their actual behavior at the time.
+    #[serde(default = "default_curve_simplification")]
+    pub curve_simplification: f64,
     pub include_legend: bool,
     pub merge_adjacent: bool,
     /// CLAUDE.md Section 8's "Path Ordering" (`docs/roadmap.md` Phase
@@ -133,6 +140,12 @@ pub struct ConversionParams {
     /// time.
     #[serde(default)]
     pub order_paths: bool,
+}
+
+/// Must match `laserprep_vectorize::DEFAULT_CURVE_SIMPLIFICATION` — not
+/// taken as a dependency on that crate just for this one constant.
+fn default_curve_simplification() -> f64 {
+    4.0
 }
 
 /// The outcome of the last conversion run for this project.
@@ -166,6 +179,7 @@ mod tests {
             dpi: 96.0,
             tone_count: 5,
             min_area_px2: 16,
+            curve_simplification: 4.0,
             include_legend: false,
             merge_adjacent: false,
             order_paths: false,
@@ -185,6 +199,7 @@ mod tests {
             dpi: 96.0,
             tone_count: 5,
             min_area_px2: 16,
+            curve_simplification: 4.0,
             include_legend: false,
             merge_adjacent: false,
             order_paths: false,

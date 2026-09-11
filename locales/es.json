@@ -21,6 +21,7 @@
   "toneCount.label": "Número de tonos",
   "dpi.label": "DPI de origen",
   "minArea.label": "Área mínima (px²)",
+  "curveSimplification.label": "Simplificación de curvas",
   "legend.label": "Incluir leyenda de tonos",
   "mergeAdjacent.label": "Unir regiones adyacentes",
   "orderPaths.label": "Ordenar trazados (reducir desplazamiento del láser)",

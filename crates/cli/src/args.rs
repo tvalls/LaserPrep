@@ -54,6 +54,17 @@ pub struct ConvertArgs {
     #[arg(long = "min-area")]
     pub min_area_px2: Option<u32>,
 
+    /// Curve fitting tolerance (CLAUDE.md Section 8's "Curve
+    /// Simplification"/"Node Reduction" — one parameter here, see
+    /// `laserprep_vectorize::VtracerVectorizer`'s doc comment for why).
+    /// Higher values trace smoother, lower-node-count paths at the
+    /// cost of fine detail; raise this if a conversion of a
+    /// texture-heavy photo (skin, fur, foliage) produces an
+    /// impractically large SVG. Overrides the preset's value when
+    /// given.
+    #[arg(long = "curve-simplification")]
+    pub curve_simplification: Option<f64>,
+
     /// Output DPI, used to compute the SVG's physical dimensions
     /// (CLAUDE.md Section 11).
     #[arg(long, default_value_t = DEFAULT_DPI)]
@@ -123,6 +134,9 @@ pub fn run_convert(args: ConvertArgs) -> Result<(), String> {
     let preset = args.preset.resolve();
     let tone_count = args.tones.unwrap_or(preset.tone_count);
     let min_area_px2 = args.min_area_px2.unwrap_or(preset.min_area_px2);
+    let curve_simplification = args
+        .curve_simplification
+        .unwrap_or(preset.curve_simplification);
     let include_legend = args.legend || preset.include_legend;
     let merge_adjacent = args.merge_adjacent || preset.merge_adjacent;
 
@@ -134,6 +148,7 @@ pub fn run_convert(args: ConvertArgs) -> Result<(), String> {
         args.dpi,
         tone_count,
         min_area_px2,
+        curve_simplification,
         include_legend,
         merge_adjacent,
         args.order_paths,

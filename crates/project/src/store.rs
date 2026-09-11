@@ -84,6 +84,7 @@ mod tests {
             dpi: 96.0,
             tone_count: 5,
             min_area_px2: 16,
+            curve_simplification: 4.0,
             include_legend: true,
             merge_adjacent: false,
             order_paths: false,

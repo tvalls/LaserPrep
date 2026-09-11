@@ -119,6 +119,11 @@ pub trait Vectorizer {
 /// so callers aren't left guessing where `16` comes from.
 pub const DEFAULT_MIN_AREA_PX2: u32 = 16;
 
+/// vtracer's `Bw` preset's default curve-fitting tolerance
+/// (`length_threshold: 4.0`) — the same value, named, so callers
+/// overriding it have a documented baseline to reason from.
+pub const DEFAULT_CURVE_SIMPLIFICATION: f64 = 4.0;
+
 /// The default [`Vectorizer`], backed by `vtracer` in binary-tracing
 /// mode (one call per tone mask).
 ///
@@ -126,20 +131,39 @@ pub const DEFAULT_MIN_AREA_PX2: u32 = 16;
 /// parameter: connected regions smaller than this (in pixels²) are
 /// discarded as noise before tracing, rather than becoming a tiny
 /// stray path.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// `curve_simplification` is CLAUDE.md Section 8's "Curve
+/// Simplification" *and* "Node Reduction" parameters — in vtracer's
+/// curve-fitting algorithm these are the same knob
+/// (`Config::length_threshold`, the fitting error tolerance a
+/// simplified curve is allowed relative to the traced pixels): fewer
+/// nodes is a direct consequence of allowing more simplification, not
+/// an independently tunable axis, so exposing two separate parameters
+/// with identical effect would be exactly the kind of duplicate/fake
+/// control CLAUDE.md Section 13 warns against. Higher values simplify
+/// more aggressively (straighter curves, fewer nodes, less fidelity to
+/// fine texture); `min_area_px2` discards whole small regions, while
+/// this smooths the *paths that remain* — the two problems photos with
+/// heavy background texture or fine skin/fur detail tend to hit
+/// together, but from different mechanisms.
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct VtracerVectorizer {
     min_area_px2: u32,
+    curve_simplification: f64,
 }
 
 impl VtracerVectorizer {
-    pub fn new(min_area_px2: u32) -> Self {
-        Self { min_area_px2 }
+    pub fn new(min_area_px2: u32, curve_simplification: f64) -> Self {
+        Self {
+            min_area_px2,
+            curve_simplification,
+        }
     }
 }
 
 impl Default for VtracerVectorizer {
     fn default() -> Self {
-        Self::new(DEFAULT_MIN_AREA_PX2)
+        Self::new(DEFAULT_MIN_AREA_PX2, DEFAULT_CURVE_SIMPLIFICATION)
     }
 }
 
@@ -176,6 +200,7 @@ impl VtracerVectorizer {
         // Config::filter_speckle is a side length in pixels; vtracer
         // squares it internally into the area threshold we expose.
         config.filter_speckle = (f64::from(self.min_area_px2).sqrt().ceil() as usize).max(1);
+        config.length_threshold = self.curve_simplification;
         config
     }
 
@@ -356,17 +381,61 @@ mod tests {
             foreground,
         };
 
-        let filtered = VtracerVectorizer::new(16).trace(&mask).unwrap();
+        let filtered = VtracerVectorizer::new(16, DEFAULT_CURVE_SIMPLIFICATION)
+            .trace(&mask)
+            .unwrap();
         assert!(
             filtered.is_empty(),
             "a 4px speckle should be filtered out at min_area=16"
         );
 
-        let kept = VtracerVectorizer::new(1).trace(&mask).unwrap();
+        let kept = VtracerVectorizer::new(1, DEFAULT_CURVE_SIMPLIFICATION)
+            .trace(&mask)
+            .unwrap();
         assert_eq!(
             kept.len(),
             1,
             "the same speckle should survive at min_area=1"
+        );
+    }
+
+    #[test]
+    fn higher_curve_simplification_produces_fewer_nodes() {
+        // A staircase boundary (jagged at pixel scale, roughly diagonal
+        // overall) — the kind of high-frequency edge real photo texture
+        // (skin, fur, compression blocks) produces. Low simplification
+        // should trace every step; high simplification should smooth
+        // most of them away.
+        let size = 40;
+        let mut foreground = vec![false; size * size];
+        for y in 0..size {
+            for x in 0..size {
+                if x < y {
+                    foreground[y * size + x] = true;
+                }
+            }
+        }
+        let mask = BinaryMask {
+            width: size as u32,
+            height: size as u32,
+            foreground,
+        };
+
+        let count_nodes = |paths: &[VectorPath]| -> usize {
+            paths
+                .iter()
+                .map(|p| p.svg_element.matches(['M', 'L', 'C', 'Z']).count())
+                .sum()
+        };
+
+        let detailed = VtracerVectorizer::new(1, 0.5).trace(&mask).unwrap();
+        let simplified = VtracerVectorizer::new(1, 30.0).trace(&mask).unwrap();
+
+        assert!(
+            count_nodes(&simplified) < count_nodes(&detailed),
+            "expected fewer nodes at higher curve_simplification: {} (simplified) vs {} (detailed)",
+            count_nodes(&simplified),
+            count_nodes(&detailed),
         );
     }
 

@@ -47,6 +47,7 @@ const photoPreset = {
   name: "Photo" as const,
   toneCount: 5,
   minAreaPx2: 16,
+  curveSimplification: 4,
   includeLegend: false,
   mergeAdjacent: false,
 };
@@ -151,6 +152,7 @@ describe("App", () => {
         dpi: 96,
         toneCount: 5,
         minAreaPx2: 16,
+        curveSimplification: 4,
         includeLegend: false,
         mergeAdjacent: false,
         orderPaths: false,
@@ -186,6 +188,25 @@ describe("App", () => {
     );
   });
 
+  it("sends a manually edited curve simplification value", async () => {
+    open.mockResolvedValue("/tmp/photo.png");
+    invoke.mockResolvedValue(conversionResult());
+    const user = userEvent.setup();
+
+    render(<App />);
+    const field = screen.getByLabelText("Curve simplification");
+    await user.clear(field);
+    await user.type(field, "12");
+    await user.click(screen.getByRole("button", { name: "Import Image" }));
+
+    expect(invoke).toHaveBeenCalledWith(
+      "convert_image_file",
+      expect.objectContaining({
+        params: expect.objectContaining({ curveSimplification: 12 }),
+      }),
+    );
+  });
+
   it("shows the detected content category and confidence", async () => {
     open.mockResolvedValue("/tmp/photo.png");
     invoke.mockResolvedValue({
@@ -196,6 +217,7 @@ describe("App", () => {
         name: "Logo",
         toneCount: 2,
         minAreaPx2: 4,
+        curveSimplification: 4,
         includeLegend: false,
         mergeAdjacent: true,
       },
@@ -225,6 +247,7 @@ describe("App", () => {
         name: "Logo",
         toneCount: 2,
         minAreaPx2: 4,
+        curveSimplification: 4,
         includeLegend: false,
         mergeAdjacent: true,
       },
@@ -372,6 +395,7 @@ describe("App", () => {
         name: "Logo",
         toneCount: 2,
         minAreaPx2: 4,
+        curveSimplification: 4,
         includeLegend: false,
         mergeAdjacent: true,
       },
@@ -425,6 +449,7 @@ describe("App", () => {
         dpi: 96,
         toneCount: 5,
         minAreaPx2: 16,
+        curveSimplification: 4,
         includeLegend: false,
         mergeAdjacent: false,
         orderPaths: false,
@@ -453,6 +478,7 @@ describe("App", () => {
           dpi: 96,
           toneCount: 5,
           minAreaPx2: 16,
+          curveSimplification: 4,
           includeLegend: false,
           mergeAdjacent: false,
           orderPaths: false,
@@ -527,6 +553,7 @@ describe("App", () => {
         name: "Logo",
         toneCount: 2,
         minAreaPx2: 4,
+        curveSimplification: 4,
         includeLegend: false,
         mergeAdjacent: true,
       },
